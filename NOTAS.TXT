@@ -1,0 +1,115 @@
+CREACION DE PROYECTO:
+django-admin startproject name_proyect
+
+instalamo entorno virtual: virtualenv venv 
+ 
+** activamos entorno virtula: 
+.\venv\Scripts\activate
+** desactivamos el entorno: 
+deactivate
+
+** instalamos las librerias que estan dentro
+** de requirements.txt: 
+pip install -r .\requirements.txt
+
+
+** Chequeamos que este todo bien antes de migrar
+python manage.py check
+
+
+** creamos la migracion: 
+python manage.py makemigrations
+
+
+** realizamos las migraciones:  
+py manage.py migrate
+
+
+** cremos en superUsuario:  
+py manage.py createsuperuser
+
+** corremos el servidor: 
+py manage.py runserver
+
+** lista de lo instalado en pip: 
+pip list
+
+** realizamos una intalacion desde un archivo txt: 
+pip install -r .\requirements.txt
+
+** realizamos instalaciones:
+pip install *nombre del programa*
+** (ejemplo:  pip install mysql-connector-python )
+
+** realizamos desinstalacion:
+pip uninstall *nombre programa*
+(ejemplo: pip uninstall python-dotenv)
+
+
+django-admin startapp posts
+django-admin startproject blog
+django-admin startproject core .
+
+** solucion para el conflico de scrip en windows **
+Get-ExecutionPolicy -List
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser 
+** solucion para el conflico de scrip en windows **
+
+pip install virtualenv
+pip install python-dotenv
+pip install decouple
+pip install python-decouple
+pip install python-dotenv mysql-connector-python
+pip install Django
+pip install distlib
+pip install -r .\requirements.txt
+python manage.py makemigrations
+python manage.py migrate
+py manage.py runserver
+
+
+################ pythonanywhere.com ################
+git pull  (para bajar los cambio del repo)
+workon venv (activa el entorno virtual)
+python manage.py collectstatic
+
+/static/
+/home/gestionagua/GESTION-CLIENTES/Control_Clientes_distri/
+/home/gestionagua/.virtualenvs/myvirtualenv/
+
+
+# Config Django
+SECRET_KEY=django-insecure-e_s&y%3bc6l+vf0lgwso-gb!8oko3zf7u++pfm9dl72r=*+9l#
+
+DEBUG=True
+ALLOWED_HOSTS=gestionagua.pythonanywhere.com
+
+# Config data base
+DB_NAME=gestionagua$gestion_cliente_agua_v2
+DB_USER=gestionagua
+DB_PASSWORD=X2j6bv58
+DB_HOST=gestionagua.mysql.pythonanywhere-services.com
+DB_PORT=3306
+
+
+
+# +++++++++++ DJANGO +++++++++++
+# To use your own django app use code like this:
+import os
+import sys
+#
+## assuming your django settings file is at '/home/escobardie/mysite/mysite/settings.py'
+## and your manage.py is is at '/home/escobardie/mysite/manage.py'
+path = '/home/gestionagua/GESTION-CLIENTES/Control_Clientes_distri'
+if path not in sys.path:
+    sys.path.append(path)
+#
+os.environ['DJANGO_SETTINGS_MODULE'] = 'core.settings'
+#
+## then:
+from django.core.wsgi import get_wsgi_application
+application = get_wsgi_application()
+
+
+######################## PYTHON UVICORN ########################
+uvicorn core.asgi:application --reload

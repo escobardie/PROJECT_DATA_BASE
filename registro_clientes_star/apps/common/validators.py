@@ -1,0 +1,3 @@
+"""
+Validadores reutilizables del sistema.
+"""

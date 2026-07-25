@@ -1,0 +1,21 @@
+{
+    "provincias": [
+        {
+            "nombre": "Chaco",
+            "ciudades": [
+                "Resistencia",
+                "Barranqueras",
+                "Fontana",
+                "Puerto Tirol"
+            ]
+        },
+        {
+            "nombre": "Corrientes",
+            "ciudades": [
+                "Corrientes",
+                "Goya",
+                "Paso de los Libres"
+            ]
+        }
+    ]
+}
