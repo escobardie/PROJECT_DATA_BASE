@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from django.db import models
 
 from apps.common.constants import MAX_CODE_LENGTH
@@ -19,7 +21,7 @@ class CodeModel(BaseModel):
         verbose_name="Código",
     )
 
-    CODE_PREFIX = None
+    CODE_PREFIX: ClassVar[str |None] = None
 
     class Meta:
         abstract = True
@@ -35,16 +37,17 @@ class CodeModel(BaseModel):
                 "Debe definir CODE_PREFIX en el modelo."
             )
 
-        is_new = self.pk is None
+        if self.pk is None:
+            super().save(*args, **kwargs)
 
-        super().save(*args, **kwargs)
-
-        if is_new:
             self.codigo = generate_code(
                 self.CODE_PREFIX,
-                self.pk
+                self.pk,
             )
 
             super().save(
-                update_fields=["codigo"]
+                update_fields=["codigo"],
             )
+
+        else:
+            super().save(*args, **kwargs)

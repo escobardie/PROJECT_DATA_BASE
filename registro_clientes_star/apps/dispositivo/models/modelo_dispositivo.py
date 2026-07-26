@@ -55,8 +55,7 @@ class ModeloDispositivo(CodeModel):
         verbose_name=_("Nombre del modelo"),
     )
 
-    descripcion = models.CharField(
-        max_length=MAX_DESCRIPTION_LENGTH,
+    descripcion = models.TextField(
         blank=True,
         verbose_name=_("Descripción"),
     )

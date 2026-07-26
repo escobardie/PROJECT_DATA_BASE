@@ -26,4 +26,3 @@ class BaseModel(models.Model):
 
     class Meta:
         abstract = True
-        ordering = ("-created_at",) #Esto hace que, por defecto, los registros más recientes aparezcan primero en las consultas

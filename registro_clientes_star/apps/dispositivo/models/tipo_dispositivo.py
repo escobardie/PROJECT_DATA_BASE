@@ -5,7 +5,6 @@ from apps.common.models import CodeModel
 from apps.common.constants import (
     DEVICE_TYPE_CODE_PREFIX,
     MAX_NAME_LENGTH,
-    MAX_DESCRIPTION_LENGTH,
 )
 
 
@@ -24,6 +23,7 @@ class TipoDispositivo(CodeModel):
 
     CODE_PREFIX = DEVICE_TYPE_CODE_PREFIX
 
+
     # ======================================================
     # INFORMACIÓN GENERAL
     # ======================================================
@@ -34,17 +34,20 @@ class TipoDispositivo(CodeModel):
         verbose_name=_("Nombre"),
     )
 
-    descripcion = models.CharField(
-        max_length=MAX_DESCRIPTION_LENGTH,
+    descripcion = models.TextField(
         blank=True,
         verbose_name=_("Descripción"),
     )
 
+
     class Meta:
         verbose_name = _("Tipo de dispositivo")
         verbose_name_plural = _("Tipos de dispositivos")
-        ordering = ("nombre",)
+
+        ordering = (
+            "nombre",
+        )
+
 
     def __str__(self):
         return self.nombre
-

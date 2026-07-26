@@ -9,7 +9,8 @@ from apps.common.constants import (
     PRICE_DECIMAL_PLACES,
     DEFAULT_AMOUNT,
 )
-from apps.sistema.models import Sistema
+
+from apps.sistema.models.sistema import Sistema
 
 from .categoria import CategoriaServicio
 
@@ -17,11 +18,13 @@ from .categoria import CategoriaServicio
 class Servicio(CodeModel):
     """
     Representa un servicio ofrecido por la empresa.
-    Corresponde al catálogo comercial y no a un servicio
-    contratado por un cliente.
+
+    Corresponde al catálogo comercial y no a un
+    servicio contratado por un cliente.
     """
 
     CODE_PREFIX = SERVICE_CODE_PREFIX
+
 
     # ======================================================
     # RELACIONES
@@ -33,6 +36,7 @@ class Servicio(CodeModel):
         related_name="servicios",
         verbose_name=_("Categoría"),
     )
+
     sistemas = models.ManyToManyField(
         Sistema,
         through="ServicioSistema",
@@ -40,6 +44,7 @@ class Servicio(CodeModel):
         verbose_name=_("Sistemas"),
         blank=True,
     )
+
 
     # ======================================================
     # INFORMACIÓN GENERAL
@@ -55,6 +60,7 @@ class Servicio(CodeModel):
         verbose_name=_("Descripción"),
     )
 
+
     # ======================================================
     # INFORMACIÓN COMERCIAL
     # ======================================================
@@ -66,8 +72,9 @@ class Servicio(CodeModel):
         verbose_name=_("Precio abono"),
     )
 
+
     # ======================================================
-    # CONFIGURACIÓN DEL SERVICIO
+    # CONFIGURACIÓN
     # ======================================================
 
     requiere_dispositivos = models.BooleanField(
@@ -90,6 +97,7 @@ class Servicio(CodeModel):
         verbose_name=_("Permite facturación"),
     )
 
+
     # ======================================================
     # OBSERVACIONES
     # ======================================================
@@ -99,17 +107,25 @@ class Servicio(CodeModel):
         verbose_name=_("Observaciones"),
     )
 
+
     class Meta:
         verbose_name = _("Servicio")
         verbose_name_plural = _("Servicios")
-        ordering = ("nombre",)
+
+        ordering = (
+            "nombre",
+        )
 
         constraints = [
             models.UniqueConstraint(
-                fields=["categoria","nombre",],
+                fields=[
+                    "categoria",
+                    "nombre",
+                ],
                 name="unique_servicio_categoria_nombre",
             )
         ]
+
 
     def __str__(self):
         return self.nombre

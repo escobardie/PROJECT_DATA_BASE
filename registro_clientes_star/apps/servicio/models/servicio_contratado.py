@@ -16,7 +16,11 @@ from apps.common.constants import (
     MAX_STATUS_LENGTH,
 )
 
-from apps.cuenta_cliente.models import Sucursal
+from apps.cuenta_cliente.models.sucursal import Sucursal
+from django.core.validators import (
+    MinValueValidator,
+    MaxValueValidator,
+)
 
 from apps.common.choices import EstadoServicioContratadoChoices
 from .servicio import Servicio
@@ -81,8 +85,11 @@ class ServicioContratado(CodeModel):
         max_digits=MAX_PERCENTAGE_DIGITS,
         decimal_places=PERCENTAGE_DECIMAL_PLACES,
         default=DEFAULT_PERCENTAGE,
+        validators=[
+            MinValueValidator(0),
+            MaxValueValidator(100),
+        ],
         verbose_name=_("Descuento (%)"),
-        help_text=_("Porcentaje de descuento aplicado al abono."),
     )
 
     # ======================================================
@@ -148,6 +155,16 @@ class ServicioContratado(CodeModel):
             "-fecha_alta",
             "nombre_comercial",
         )
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "sucursal",
+                    "servicio",
+                ],
+                name="unique_servicio_contratado_por_sucursal",
+            )
+        ]
 
     @property
     def importe_final(self):

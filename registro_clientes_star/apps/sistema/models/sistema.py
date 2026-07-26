@@ -5,7 +5,6 @@ from apps.common.models import CodeModel
 from apps.common.constants import (
     SYSTEM_CODE_PREFIX,
     MAX_NAME_LENGTH,
-    MAX_DESCRIPTION_LENGTH,
 )
 
 from .categoria_sistema import CategoriaSistema
@@ -24,6 +23,7 @@ class Sistema(CodeModel):
 
     CODE_PREFIX = SYSTEM_CODE_PREFIX
 
+
     # ======================================================
     # RELACIONES
     # ======================================================
@@ -35,6 +35,7 @@ class Sistema(CodeModel):
         verbose_name=_("Categoría"),
     )
 
+
     # ======================================================
     # INFORMACIÓN GENERAL
     # ======================================================
@@ -44,11 +45,11 @@ class Sistema(CodeModel):
         verbose_name=_("Nombre"),
     )
 
-    descripcion = models.CharField(
-        max_length=MAX_DESCRIPTION_LENGTH,
+    descripcion = models.TextField(
         blank=True,
         verbose_name=_("Descripción"),
     )
+
 
     # ======================================================
     # ESTADO COMERCIAL
@@ -62,6 +63,7 @@ class Sistema(CodeModel):
         ),
     )
 
+
     # ======================================================
     # OBSERVACIONES
     # ======================================================
@@ -70,6 +72,7 @@ class Sistema(CodeModel):
         blank=True,
         verbose_name=_("Observaciones"),
     )
+
 
     class Meta:
         verbose_name = _("Sistema")
@@ -89,6 +92,7 @@ class Sistema(CodeModel):
                 name="unique_sistema_por_categoria",
             )
         ]
+
 
     def __str__(self):
         return f"{self.categoria} - {self.nombre}"

@@ -2,7 +2,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from apps.common.models import BaseModel
-from apps.sistema.models import Sistema
+from apps.sistema.models.sistema import Sistema
 
 from .servicio import Servicio
 
@@ -54,6 +54,7 @@ class ServicioSistema(BaseModel):
         verbose_name=_("Observaciones"),
     )
 
+
     class Meta:
         verbose_name = _("Sistema del servicio")
         verbose_name_plural = _("Sistemas del servicio")
@@ -73,6 +74,7 @@ class ServicioSistema(BaseModel):
                 name="unique_servicio_sistema",
             ),
         ]
+
 
     def __str__(self):
         return f"{self.servicio} → {self.sistema}"

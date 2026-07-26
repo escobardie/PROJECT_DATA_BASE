@@ -8,19 +8,21 @@ from apps.common.constants import (
     MAX_DESCRIPTION_LENGTH,
 )
 
-from apps.cuenta_cliente.models import Sucursal
-
+from apps.cuenta_cliente.models.sucursal import Sucursal
 from apps.common.choices import EstadoProyectoChoices
+
 
 class Proyecto(CodeModel):
     """
-    Representa un proyecto o trabajo realizado para una sucursal.
+    Representa un proyecto o trabajo realizado
+    para una sucursal.
 
     Ejemplo:
         Instalación CCTV Planta Norte.
     """
 
     CODE_PREFIX = PROJECT_CODE_PREFIX
+
 
     # ======================================================
     # RELACIONES
@@ -33,6 +35,7 @@ class Proyecto(CodeModel):
         verbose_name=_("Sucursal"),
     )
 
+
     # ======================================================
     # INFORMACIÓN GENERAL
     # ======================================================
@@ -42,11 +45,11 @@ class Proyecto(CodeModel):
         verbose_name=_("Nombre"),
     )
 
-    descripcion = models.CharField(
-        max_length=MAX_DESCRIPTION_LENGTH,
+    descripcion = models.TextField(
         blank=True,
         verbose_name=_("Descripción"),
     )
+
 
     # ======================================================
     # ESTADO
@@ -58,6 +61,7 @@ class Proyecto(CodeModel):
         default=EstadoProyectoChoices.PLANIFICADO,
         verbose_name=_("Estado"),
     )
+
 
     # ======================================================
     # FECHAS
@@ -75,6 +79,7 @@ class Proyecto(CodeModel):
         verbose_name=_("Fecha de finalización"),
     )
 
+
     # ======================================================
     # OBSERVACIONES
     # ======================================================
@@ -84,6 +89,7 @@ class Proyecto(CodeModel):
         verbose_name=_("Observaciones"),
     )
 
+
     class Meta:
         verbose_name = _("Proyecto")
         verbose_name_plural = _("Proyectos")
@@ -92,5 +98,10 @@ class Proyecto(CodeModel):
             "-created_at",
         )
 
+
     def __str__(self):
-        return f"{self.codigo} - {self.nombre}"
+        return (
+            f"{self.codigo} - "
+            f"{self.nombre} "
+            f"({self.sucursal.nombre})"
+        )

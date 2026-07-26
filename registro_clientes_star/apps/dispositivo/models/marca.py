@@ -5,7 +5,6 @@ from apps.common.models import CodeModel
 from apps.common.constants import (
     DEVICE_BRAND_CODE_PREFIX,
     MAX_NAME_LENGTH,
-    MAX_DESCRIPTION_LENGTH,
 )
 
 
@@ -23,6 +22,7 @@ class Marca(CodeModel):
 
     CODE_PREFIX = DEVICE_BRAND_CODE_PREFIX
 
+
     # ======================================================
     # INFORMACIÓN GENERAL
     # ======================================================
@@ -33,11 +33,11 @@ class Marca(CodeModel):
         verbose_name=_("Nombre"),
     )
 
-    descripcion = models.CharField(
-        max_length=MAX_DESCRIPTION_LENGTH,
+    descripcion = models.TextField(
         blank=True,
         verbose_name=_("Descripción"),
     )
+
 
     # ======================================================
     # INFORMACIÓN DEL FABRICANTE
@@ -48,6 +48,7 @@ class Marca(CodeModel):
         verbose_name=_("Sitio web"),
     )
 
+
     # ======================================================
     # OBSERVACIONES
     # ======================================================
@@ -57,17 +58,15 @@ class Marca(CodeModel):
         verbose_name=_("Observaciones"),
     )
 
+
     class Meta:
         verbose_name = _("Marca")
         verbose_name_plural = _("Marcas")
-        ordering = ("nombre",)
 
-        constraints = [
-            models.UniqueConstraint(
-                fields=["nombre"],
-                name="unique_marca_nombre",
-            )
-        ]
+        ordering = (
+            "nombre",
+        )
+
 
     def __str__(self):
         return self.nombre

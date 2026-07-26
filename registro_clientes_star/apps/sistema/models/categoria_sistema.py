@@ -30,12 +30,17 @@ class CategoriaSistema(CodeModel):
         max_length=MAX_NAME_LENGTH,
         unique=True,
         verbose_name=_("Nombre"),
+        help_text=_(
+            "Nombre de la categoría tecnológica."
+        ),
     )
 
-    descripcion = models.CharField(
-        max_length=MAX_DESCRIPTION_LENGTH,
+    descripcion = models.TextField(
         blank=True,
         verbose_name=_("Descripción"),
+        help_text=_(
+            "Descripción detallada de la categoría tecnológica."
+        ),
     )
 
     class Meta:
