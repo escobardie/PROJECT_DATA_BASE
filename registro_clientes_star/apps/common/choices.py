@@ -43,3 +43,28 @@ class EstadoProyectoChoices(models.TextChoices):
     EN_EJECUCION = "EN_EJECUCION", _("En ejecución")
     FINALIZADO = "FINALIZADO", _("Finalizado")
     CANCELADO = "CANCELADO", _("Cancelado")
+
+class EstadoFacturaChoices(models.TextChoices):
+    """
+    Estados posibles de una factura.
+    """
+
+    PENDIENTE = "pendiente", _("Pendiente")
+    PARCIAL = "parcial", _("Parcial")
+    PAGADA = "pagada", _("Pagada")
+    VENCIDA = "vencida", _("Vencida")
+    ANULADA = "anulada", _("Anulada")
+
+class MedioPagoChoices(models.TextChoices):
+    """
+    Medios de pago posibles para un pago.
+    """
+
+    EFECTIVO = "efectivo", _("Efectivo")
+    TARJETA_CREDITO = "tarjeta_credito", _("Tarjeta de crédito")
+    TARJETA_DEBITO = "tarjeta_debito", _("Tarjeta de débito")
+    TRANSFERENCIA_BANCARIA = "transferencia_bancaria", _("Transferencia bancaria")
+    #ADELANTO_MITAD_INICIO_RESTO_FINALIZAR = "adelanto_mitad_inicio_resto_finalizar", _("Adelanto, mitad (50%) al inicio y resto (50%) al finalizar")
+    MITAD_MITAD = "mitad_mitad", _("Mitad (50%) al inicio y resto (50%) al finalizar")
+    CHEQUE = "cheque", _("Cheque")
+    OTRO = "otro", _("Otro")
