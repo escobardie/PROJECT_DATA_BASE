@@ -50,6 +50,16 @@ class FacturaPagadaError(BusinessLogicError):
     )
 
 
+class FacturaEmitidaError(BusinessLogicError):
+    """
+    La factura ya fue emitida y no puede volver a emitirse
+    ni modificarse.
+    """
+
+    default_message = _(
+        "La factura ya fue emitida."
+    )
+
 # ======================================================
 # CLIENTES
 # ======================================================
@@ -104,3 +114,4 @@ class ProyectoFinalizadoError(BusinessLogicError):
     default_message = _(
         "El proyecto ya fue finalizado."
     )
+

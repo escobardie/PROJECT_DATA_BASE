@@ -49,11 +49,11 @@ class EstadoFacturaChoices(models.TextChoices):
     Estados posibles de una factura.
     """
 
-    PENDIENTE = "pendiente", _("Pendiente")
-    PARCIAL = "parcial", _("Parcial")
-    PAGADA = "pagada", _("Pagada")
-    VENCIDA = "vencida", _("Vencida")
-    ANULADA = "anulada", _("Anulada")
+    PENDIENTE = "PENDIENTE", _("Pendiente")
+    PARCIAL = "PARCIAL", _("Parcial")
+    PAGADA = "PAGADA", _("Pagada")
+    VENCIDA = "VENCIDA", _("Vencida")
+    ANULADA = "ANULADA", _("Anulada")
 
 class MedioPagoChoices(models.TextChoices):
     """

@@ -6,6 +6,7 @@ from apps.common.models import CodeModel
 from apps.common.constants import (
     MAX_PRICE_DIGITS,
     PRICE_DECIMAL_PLACES,
+    PAYMENT_CODE_PREFIX,
 )
 
 from .factura import Factura
@@ -21,6 +22,8 @@ class Pago(CodeModel):
     en función de estos registros.
     """
 
+    CODE_PREFIX = PAYMENT_CODE_PREFIX
+    
     # ======================================================
     # RELACIÓN
     # ======================================================

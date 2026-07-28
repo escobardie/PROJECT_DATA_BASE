@@ -71,6 +71,7 @@ class ServicioContratadoAdmin(admin.ModelAdmin):
         "codigo",
         "servicio",
         "sucursal",
+        "proyecto",
         "nombre_comercial",
         "fecha_alta",
         "precio_abono",
@@ -92,6 +93,8 @@ class ServicioContratadoAdmin(admin.ModelAdmin):
         "sucursal__cuenta_cliente__nombre",
         "sucursal__cuenta_cliente__apellido",
         "sucursal__cuenta_cliente__razon_social",
+        "proyecto__codigo",
+        "proyecto__nombre",
     )
 
     list_filter = (
@@ -110,6 +113,7 @@ class ServicioContratadoAdmin(admin.ModelAdmin):
     autocomplete_fields = (
         "sucursal",
         "servicio",
+        "proyecto",
     )
 
     @admin.display(description="Importe final", ordering="precio_abono")

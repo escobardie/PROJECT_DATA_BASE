@@ -57,6 +57,19 @@ class ServicioContratado(CodeModel):
         help_text=_("Servicio contratado por la sucursal."),
     )
 
+    proyecto = models.ForeignKey(
+            "proyecto.Proyecto",
+            on_delete=models.PROTECT,
+            blank=True,
+            null=True,
+            related_name="servicios_contratados",
+            verbose_name=_("Proyecto de origen"),
+            help_text=_(
+                "Proyecto que dio origen a este servicio contratado, "
+                "si corresponde. Puede no provenir de ningún proyecto."
+            ),
+        )
+
     # ======================================================
     # INFORMACIÓN GENERAL
     # ======================================================

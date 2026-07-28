@@ -4,6 +4,9 @@ from django.utils.translation import gettext_lazy as _
 from apps.common.exceptions import (
     PuntoVentaNoDisponibleError,
 )
+from apps.common.constants import (
+    NUM_FACTURA_CODE_PREFIX,
+)
 
 
 class NumeradorFactura(models.Model):
@@ -14,6 +17,8 @@ class NumeradorFactura(models.Model):
     Es un modelo técnico encargado únicamente de generar
     números consecutivos seguros.
     """
+
+    CODE_PREFIX = NUM_FACTURA_CODE_PREFIX
 
     # ======================================================
     # IDENTIFICACIÓN

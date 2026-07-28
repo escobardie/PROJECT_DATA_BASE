@@ -9,6 +9,48 @@ from .models import (
 
 
 # ======================================================
+# INLINE DETALLES
+# ======================================================
+
+class DetalleFacturaInline(admin.TabularInline):
+    model = DetalleFactura
+
+    extra = 1
+
+    fields = (
+        "servicio_contratado",
+        "concepto",
+        "descripcion",
+        "cantidad",
+        "precio_unitario",
+        "descuento",
+        "subtotal",
+    )
+
+    readonly_fields = (
+        "subtotal",
+    )
+
+
+# ======================================================
+# INLINE PAGOS
+# ======================================================
+
+class PagoInline(admin.TabularInline):
+    model = Pago
+
+    extra = 0
+
+    fields = (
+        "fecha",
+        "importe",
+        "medio_pago",
+        "numero_comprobante",
+        "observaciones",
+    )
+
+
+# ======================================================
 # NUMERADOR FACTURA
 # ======================================================
 
@@ -41,6 +83,10 @@ class NumeradorFacturaAdmin(admin.ModelAdmin):
 @admin.register(Factura)
 class FacturaAdmin(admin.ModelAdmin):
 
+    # --------------------------------------------------
+    # LISTADO
+    # --------------------------------------------------
+
     list_display = (
         "codigo",
         "numero_formateado",
@@ -53,6 +99,11 @@ class FacturaAdmin(admin.ModelAdmin):
         "is_active",
     )
 
+
+    # --------------------------------------------------
+    # BÚSQUEDA
+    # --------------------------------------------------
+
     search_fields = (
         "codigo",
         "numero",
@@ -60,35 +111,71 @@ class FacturaAdmin(admin.ModelAdmin):
         "cuenta_cliente__apellido",
         "cuenta_cliente__razon_social",
         "cuenta_cliente__cuit",
+        "sucursal__nombre",
     )
+
+
+    # --------------------------------------------------
+    # FILTROS
+    # --------------------------------------------------
 
     list_filter = (
         "fecha_emision",
         "fecha_anulacion",
+        "punto_venta",
         "is_active",
     )
+
+
+    # --------------------------------------------------
+    # CAMPOS SOLO LECTURA
+    # --------------------------------------------------
 
     readonly_fields = (
         "codigo",
         "numero",
+        "total",
         "numero_formateado",
+        "estado",
         "total_pagado",
         "saldo_pendiente",
-        "estado",
+        "fecha_emision",
+        "fecha_anulacion",
     )
+
+
+    # --------------------------------------------------
+    # RELACIONES
+    # --------------------------------------------------
 
     autocomplete_fields = (
         "cuenta_cliente",
         "sucursal",
     )
 
-    date_hierarchy = "fecha_emision"
 
-    ordering = (
-        "-fecha_emision",
-        "-numero",
+    # --------------------------------------------------
+    # INLINE
+    # --------------------------------------------------
+
+    inlines = (
+        DetalleFacturaInline,
+        PagoInline,
     )
 
+
+    # --------------------------------------------------
+    # ORDENAMIENTO
+    # --------------------------------------------------
+
+    ordering = (
+        "-created_at",
+    )
+
+
+    # --------------------------------------------------
+    # MÉTODOS VISUALES
+    # --------------------------------------------------
 
     @admin.display(
         description="Estado"
@@ -103,8 +190,6 @@ class FacturaAdmin(admin.ModelAdmin):
     def mostrar_saldo(self, obj):
         return obj.saldo_pendiente
 
-
-
 # ======================================================
 # DETALLE FACTURA
 # ======================================================
@@ -112,38 +197,72 @@ class FacturaAdmin(admin.ModelAdmin):
 @admin.register(DetalleFactura)
 class DetalleFacturaAdmin(admin.ModelAdmin):
 
+    # ======================================================
+    # LISTADO
+    # ======================================================
+
     list_display = (
-        "codigo",
         "factura",
-        "descripcion",
+        "concepto",
+        "codigo_servicio",
         "cantidad",
         "precio_unitario",
         "descuento",
         "subtotal",
     )
 
+
+    # ======================================================
+    # BÚSQUEDA
+    # ======================================================
+
     search_fields = (
-        "codigo",
+        "concepto",
+        "codigo_servicio",
         "descripcion",
         "factura__codigo",
+        "factura__numero",
+        "servicio_contratado__codigo",
     )
 
+
+    # ======================================================
+    # FILTROS
+    # ======================================================
+
+    list_filter = (
+        "factura__fecha_emision",
+    )
+
+
+    # ======================================================
+    # CAMPOS SOLO LECTURA
+    # ======================================================
+
     readonly_fields = (
-        "codigo",
+        "codigo_servicio",
         "subtotal",
     )
+
+
+    # ======================================================
+    # RELACIONES
+    # ======================================================
 
     autocomplete_fields = (
         "factura",
         "servicio_contratado",
     )
 
+
+    # ======================================================
+    # ORDENAMIENTO
+    # ======================================================
+
     ordering = (
         "factura",
         "id",
     )
-
-
 
 # ======================================================
 # PAGO
