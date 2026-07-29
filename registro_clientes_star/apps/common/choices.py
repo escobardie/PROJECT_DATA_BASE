@@ -32,6 +32,19 @@ class EstadoDispositivoChoices(models.TextChoices):
     DANADO = "DANADO", _("Dañado")
 
 
+class EstadoAprobacionChoices(models.TextChoices):
+    """
+    Estado de aprobación de un registro cargado o
+    modificado por un usuario, sujeto a revisión de
+    un superusuario o de un staff con permiso de
+    aprobación.
+    """
+
+    PENDIENTE = "PENDIENTE", _("Pendiente de aprobación")
+    APROBADO = "APROBADO", _("Aprobado")
+    RECHAZADO = "RECHAZADO", _("Rechazado")
+
+
 class EstadoProyectoChoices(models.TextChoices):
     """
     Estados posibles de un proyecto.
