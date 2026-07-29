@@ -33,6 +33,11 @@ NUM_FACTURA_CODE_PREFIX = "NFAC"
 
 PROJECT_DETAIL_CODE_PREFIX = "DPY"
 
+ZONE_TELECOM_CODE_PREFIX = "ZONT"
+CONCEPT_TELECOM_CODE_PREFIX = "CTEL"
+SURCHARGE_TELECOM_CODE_PREFIX = "RTEL"
+QUOTE_TELECOM_CODE_PREFIX = "PTEL"
+
 # ==========================================================
 # FORMATO DE CÓDIGOS
 # ==========================================================
