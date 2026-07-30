@@ -140,3 +140,37 @@ class TipoRecargoTelecomChoices(models.TextChoices):
     SABADO = "SABADO", _("Sábado")
     DOMINGO = "DOMINGO", _("Domingo")
     FERIADO = "FERIADO", _("Feriado")
+
+
+# ==========================================================
+# INSTALACION
+# ==========================================================
+
+class EstadoInstalacionChoices(models.TextChoices):
+    PENDIENTE = "pendiente", _("Pendiente")
+    PROGRAMADA = "programada", _("Programada")
+    EN_PROCESO = "en_proceso", _("En proceso")
+    FINALIZADA = "finalizada", _("Finalizada")
+    CANCELADA = "cancelada", _("Cancelada")
+
+class PrioridadInstalacionChoices(models.TextChoices):
+    NORMAL = "normal", _("Normal")
+    ALTA = "alta", _("Alta")
+    URGENTE = "urgente", _("Urgente")
+    CRITICA = "critica", _("Crítica")
+
+class RolTecnicoInstalacionChoices(models.TextChoices):
+    RESPONSABLE = "responsable", _("Responsable")
+    AYUDANTE = "ayudante", _("Ayudante")
+    SUPERVISOR = "supervisor", _("Supervisor")
+
+class EstadoDispositivoInstaladoChoices(models.TextChoices):
+    """
+    Estados posibles de un dispositivo instalado.
+    """
+
+    INSTALADO = "instalado", _("Instalado")
+    RETIRADO = "retirado", _("Retirado")
+    REEMPLAZADO = "reemplazado", _("Reemplazado")
+    FUERA_SERVICIO = "fuera_servicio", _("Fuera de servicio")
+

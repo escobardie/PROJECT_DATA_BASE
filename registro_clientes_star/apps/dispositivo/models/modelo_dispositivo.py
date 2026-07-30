@@ -1,29 +1,35 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from apps.common.models import CodeModel
 from apps.common.constants import (
     DEVICE_MODEL_CODE_PREFIX,
     MAX_NAME_LENGTH,
-    MAX_CODE_LENGTH,
     MAX_DESCRIPTION_LENGTH,
 )
 
-from .tipo_dispositivo import TipoDispositivo
+from apps.common.models import CodeModel
+
 from .marca import Marca
+from .tipo_dispositivo import TipoDispositivo
 
 
 class ModeloDispositivo(CodeModel):
     """
-    Catálogo de modelos de dispositivos fabricados por una marca.
+    Catálogo de modelos de dispositivos.
 
-    Representa el modelo comercial/técnico de un equipo,
-    no un dispositivo físico instalado.
-    
-    Ejemplos:
-        - Hikvision DS-2CD2043G0-I
-        - Dahua XVR5108HS
-        - DSC PC1832
+    Representa un modelo comercial específico fabricado
+    por una marca determinada.
+
+    Ejemplo:
+
+    Marca:
+        Hikvision
+
+    Tipo:
+        Cámara
+
+    Modelo:
+        DS-2CD2043G2-I
     """
 
     CODE_PREFIX = DEVICE_MODEL_CODE_PREFIX
@@ -32,18 +38,24 @@ class ModeloDispositivo(CodeModel):
     # RELACIONES
     # ======================================================
 
-    tipo_dispositivo = models.ForeignKey(
-        TipoDispositivo,
-        on_delete=models.PROTECT,
-        related_name="modelos",
-        verbose_name=_("Tipo de dispositivo"),
-    )
-
     marca = models.ForeignKey(
         Marca,
         on_delete=models.PROTECT,
         related_name="modelos",
         verbose_name=_("Marca"),
+        help_text=_(
+            "Marca fabricante del dispositivo."
+        ),
+    )
+
+    tipo_dispositivo = models.ForeignKey(
+        TipoDispositivo,
+        on_delete=models.PROTECT,
+        related_name="modelos",
+        verbose_name=_("Tipo de dispositivo"),
+        help_text=_(
+            "Clasificación del dispositivo."
+        ),
     )
 
     # ======================================================
@@ -52,68 +64,54 @@ class ModeloDispositivo(CodeModel):
 
     nombre = models.CharField(
         max_length=MAX_NAME_LENGTH,
-        verbose_name=_("Nombre del modelo"),
+        db_index=True,
+        verbose_name=_("Modelo"),
+        help_text=_(
+            "Nombre o código comercial del modelo."
+        ),
+    )
+    codigo_fabricante = models.CharField(
+        max_length=MAX_NAME_LENGTH,
+        blank=True,
+        verbose_name=_("Código fabricante"),
+        help_text=_(
+            "Código asignado por el fabricante al modelo."
+        ),
     )
 
     descripcion = models.TextField(
+        max_length=MAX_DESCRIPTION_LENGTH,
         blank=True,
         verbose_name=_("Descripción"),
-    )
-
-    # ======================================================
-    # INFORMACIÓN DEL FABRICANTE
-    # ======================================================
-
-    fabricante_codigo = models.CharField(
-        max_length=MAX_CODE_LENGTH,
-        blank=True,
-        verbose_name=_("Código del fabricante"),
         help_text=_(
-            "Código o número de parte utilizado por el fabricante."
+            "Descripción general del modelo."
         ),
     )
 
-    ean = models.CharField(
-        max_length=MAX_CODE_LENGTH,
+    especificaciones = models.TextField(
         blank=True,
-        verbose_name=_("Código EAN"),
+        verbose_name=_("Especificaciones técnicas"),
         help_text=_(
-            "Código comercial EAN/GTIN del producto."
+            "Características técnicas del modelo."
         ),
     )
 
     # ======================================================
-    # INFORMACIÓN DEL FABRICANTE
+    # CONFIGURACIÓN
     # ======================================================
 
-    url_datas_heet = models.URLField(
-        blank=True,
-        verbose_name=_("URL Hoja de datos"),
+    orden = models.PositiveSmallIntegerField(
+        default=0,
+        db_index=True,
+        verbose_name=_("Orden"),
         help_text=_(
-            "Enlace a la hoja de datos técnica del producto."
+            "Orden utilizado para mostrar el catálogo."
         ),
     )
 
     # ======================================================
-    # ESTADO DEL MODELO
+    # META
     # ======================================================
-
-    fabricado = models.BooleanField(
-        default=True,
-        verbose_name=_("Fabricado"),
-        help_text=_(
-            "Indica si el fabricante continúa produciendo este modelo."
-        ),
-    )
-
-    # ======================================================
-    # OBSERVACIONES
-    # ======================================================
-
-    observaciones = models.TextField(
-        blank=True,
-        verbose_name=_("Observaciones"),
-    )
 
     class Meta:
         verbose_name = _("Modelo de dispositivo")
@@ -128,11 +126,35 @@ class ModeloDispositivo(CodeModel):
             models.UniqueConstraint(
                 fields=[
                     "marca",
-                    "nombre",
+                    "codigo_fabricante",
                 ],
-                name="unique_modelo_por_marca",
-            )
+                name="unique_modelo_marca_codigo_fabricante",
+            ),
         ]
 
+        indexes = [
+            models.Index(
+                fields=[
+                    "marca",
+                    "nombre",
+                ],
+                name="idx_modelo_marca_nombre",
+            ),
+            models.Index(
+                fields=[
+                    "tipo_dispositivo",
+                    "nombre",
+                ],
+                name="idx_modelo_tipo_nombre",
+            ),
+        ]
+
+    # ======================================================
+    # REPRESENTACIÓN
+    # ======================================================
+
     def __str__(self):
-        return f"{self.marca} - {self.nombre}"
+        return (
+            f"{self.marca.nombre} "
+            f"{self.nombre}"
+        )
