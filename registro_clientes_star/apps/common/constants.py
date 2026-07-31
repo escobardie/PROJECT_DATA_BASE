@@ -75,6 +75,9 @@ MAX_CUIT_LENGTH = 20
 
 MAX_STATUS_LENGTH = 20
 
+MAX_OBSERVATION_LENGTH = 1000
+MAX_TITLE_LENGTH = 150
+
 # ==========================================================
 # IMPORTES
 # ==========================================================
@@ -161,3 +164,11 @@ DEVICE_MODEL_CODE_PREFIX = "MOD"
 
 DEVICE_CODE_PREFIX = "DIS"
 
+
+# ======================================================
+# CONFIGURACIÓN ORDEN DE TRABAJO
+# ======================================================
+
+ORDER_CODE_PREFIX = "OT"
+
+DEFAULT_ORDER_PRIORITY = "MEDIA"

@@ -141,37 +141,143 @@ class DetallePresupuestoTelecomInline(admin.TabularInline):
     )
 
 
+
 # ======================================================
 # PRESUPUESTO
 # ======================================================
 
+# @admin.register(PresupuestoTelecom)
+# class PresupuestoTelecomAdmin(admin.ModelAdmin):
+
+#     list_display = (
+#         "codigo",
+#         "sitio_obra",
+#         "zona",
+#         "tipo_trabajo",
+#         "fecha_solicitud",
+#         "subtotal_mano_obra",
+#         "mostrar_total_mano_obra_ajustado",
+#         "subtotal_materiales",
+#         "is_active",
+#     )
+
+#     search_fields = (
+#         "codigo",
+#         "sitio_obra",
+#         "zona__provincia",
+#     )
+
+#     list_filter = (
+#         "tipo_trabajo",
+#         "zona",
+#         "fecha_solicitud",
+#         "is_active",
+#     )
+
+#     readonly_fields = (
+#         "codigo",
+#         "factor_multiplicador_zona",
+#         "factor_recargo",
+#         "subtotal_mano_obra",
+#         "subtotal_materiales",
+#         "mostrar_total_mano_obra_ajustado",
+#     )
+
+#     autocomplete_fields = (
+#         "zona",
+#         "recargo",
+#     )
+
+#     inlines = (
+#         DetallePresupuestoTelecomInline,
+#     )
+
+#     ordering = (
+#         "-fecha_solicitud",
+#     )
+
+#     @admin.display(
+#         description="Mano de obra ajustada (ARS)"
+#     )
+#     def mostrar_total_mano_obra_ajustado(self, obj):
+#         return obj.total_mano_obra_ajustado
+
 @admin.register(PresupuestoTelecom)
 class PresupuestoTelecomAdmin(admin.ModelAdmin):
 
+    # ======================================================
+    # LISTADO
+    # ======================================================
+
     list_display = (
         "codigo",
+        "codigo_wo",
         "sitio_obra",
-        "zona",
+        "cliente",
         "tipo_trabajo",
+        "zona",
         "fecha_solicitud",
-        "subtotal_mano_obra",
-        "mostrar_total_mano_obra_ajustado",
+        "total_mano_obra_ajustado",
         "subtotal_materiales",
         "is_active",
     )
 
-    search_fields = (
+    list_display_links = (
         "codigo",
         "sitio_obra",
-        "zona__provincia",
     )
+
+    ordering = (
+        "-fecha_solicitud",
+    )
+
+    # ======================================================
+    # BÚSQUEDA
+    # ======================================================
+
+    search_fields = (
+        "codigo",
+        "codigo_wo",
+        "sitio_obra",
+        "sucursal__nombre",
+        "sucursal__cuenta_cliente__codigo",
+        "sucursal__cuenta_cliente__razon_social",
+        "sucursal__cuenta_cliente__apellido",
+    )
+
+    # ======================================================
+    # FILTROS
+    # ======================================================
 
     list_filter = (
         "tipo_trabajo",
         "zona",
+        "recargo",
         "fecha_solicitud",
         "is_active",
     )
+
+    date_hierarchy = "fecha_solicitud"
+
+    # ======================================================
+    # RELACIONES
+    # ======================================================
+
+    autocomplete_fields = (
+        "sucursal",
+        "zona",
+        "recargo",
+    )
+
+    list_select_related = (
+        "sucursal",
+        "zona",
+        "recargo",
+    )
+
+    # ======================================================
+    # SOLO LECTURA
+    # ======================================================
 
     readonly_fields = (
         "codigo",
@@ -179,27 +285,133 @@ class PresupuestoTelecomAdmin(admin.ModelAdmin):
         "factor_recargo",
         "subtotal_mano_obra",
         "subtotal_materiales",
-        "mostrar_total_mano_obra_ajustado",
+        "total_mano_obra_ajustado",
+        "created_at",
+        "updated_at",
     )
 
-    autocomplete_fields = (
-        "zona",
-        "recargo",
-    )
+    # ======================================================
+    # INLINES
+    # ======================================================
 
     inlines = (
         DetallePresupuestoTelecomInline,
     )
 
-    ordering = (
-        "-fecha_solicitud",
+    # ======================================================
+    # ORGANIZACIÓN
+    # ======================================================
+
+    fieldsets = (
+
+        (
+            "Información general",
+            {
+                "fields": (
+                    "codigo",
+                    "codigo_wo",
+                    "fecha_solicitud",
+                    "tipo_trabajo",
+                ),
+            },
+        ),
+
+        (
+            "Ubicación",
+            {
+                "fields": (
+                    "sucursal",
+                    "sitio_obra",
+                    "zona",
+                    "distancia_km",
+                ),
+            },
+        ),
+
+        (
+            "Factores aplicados",
+            {
+                "fields": (
+                    "recargo",
+                    "factor_multiplicador_zona",
+                    "factor_recargo",
+                ),
+            },
+        ),
+
+        (
+            "Totales",
+            {
+                "fields": (
+                    "subtotal_mano_obra",
+                    "total_mano_obra_ajustado",
+                    "subtotal_materiales",
+                ),
+            },
+        ),
+
+        (
+            "Observaciones",
+            {
+                "fields": (
+                    "observaciones",
+                ),
+            },
+        ),
+
+        (
+            "Auditoría",
+            {
+                "classes": (
+                    "collapse",
+                ),
+                "fields": (
+                    "created_at",
+                    "updated_at",
+                    "is_active",
+                ),
+            },
+        ),
     )
 
+    # ======================================================
+    # COLUMNAS CALCULADAS
+    # ======================================================
+
     @admin.display(
-        description="Mano de obra ajustada (ARS)"
+        description="Cliente",
     )
-    def mostrar_total_mano_obra_ajustado(self, obj):
-        return obj.total_mano_obra_ajustado
+    def cliente(self, obj):
+
+        if obj.sucursal:
+            return obj.sucursal.cuenta_cliente
+
+        return "-"
+
+    # ======================================================
+    # PERSISTENCIA
+    # ======================================================
+
+    def save_related(
+        self,
+        request,
+        form,
+        formsets,
+        change,
+    ):
+        """
+        Recalcula automáticamente los totales luego
+        de guardar los detalles.
+        """
+
+        super().save_related(
+            request,
+            form,
+            formsets,
+            change,
+        )
+
+        form.instance.recalcular_totales()
 
 
 # ======================================================

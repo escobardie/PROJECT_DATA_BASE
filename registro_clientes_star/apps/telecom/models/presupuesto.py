@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -11,8 +12,11 @@ from apps.common.constants import (
     MAX_PERCENTAGE_DIGITS,
     PERCENTAGE_DECIMAL_PLACES,
     DEFAULT_AMOUNT,
+    MAX_NAME_LENGTH,
 )
+
 from apps.common.choices import TipoTrabajoTelecomChoices
+from apps.cuenta_cliente.models.sucursal import Sucursal
 
 from .zona import ZonaTelecom
 from .recargo import RecargoTelecom
@@ -21,8 +25,14 @@ from .recargo import RecargoTelecom
 class PresupuestoTelecom(CodeModel):
     """
     Cálculo de costo de una obra de telecom (instalación,
-    desinstalación o reinstalación), independiente de
-    cuenta_cliente / sucursal.
+    desinstalación o reinstalación).
+
+    La sucursal es opcional: el presupuesto puede vincularse
+    a una sucursal existente, o quedar suelto (por ejemplo,
+    para un sitio que todavía no es cliente). Si se indica
+    una sucursal, su provincia debe coincidir con la de la
+    zona elegida (ver clean()), para que el factor aplicado
+    sea el que realmente corresponde al lugar de la obra.
 
     Guarda una copia histórica del factor de la zona y del
     recargo elegidos al momento de crearse, para que un
@@ -40,7 +50,16 @@ class PresupuestoTelecom(CodeModel):
     # ======================================================
     # RELACIONES
     # ======================================================
-
+    sucursal = models.ForeignKey(
+        Sucursal,
+        blank=True,
+        null=True,
+        on_delete=models.PROTECT,
+        related_name="presupuestos",
+        verbose_name=_("Sucursal"),
+    )
+    
+    
     zona = models.ForeignKey(
         ZonaTelecom,
         on_delete=models.PROTECT,
@@ -64,6 +83,18 @@ class PresupuestoTelecom(CodeModel):
     # ======================================================
     # INFORMACIÓN GENERAL
     # ======================================================
+
+    codigo_wo = models.CharField(
+        max_length=MAX_NAME_LENGTH,
+        blank=True,
+        verbose_name=_("WO"),
+        help_text=_(
+            "Número de Work Order (orden de trabajo) con "
+            "el que la empresa de telecom identifica este "
+            "trabajo."
+        ),
+    )
+
 
     fecha_solicitud = models.DateField(
         default=timezone.localdate,
@@ -151,6 +182,36 @@ class PresupuestoTelecom(CodeModel):
         ordering = (
             "-fecha_solicitud",
         )
+
+    # ======================================================
+    # VALIDACIÓN
+    # ======================================================
+
+    def clean(self):
+        """
+        Si el presupuesto está vinculado a una sucursal,
+        la provincia de esa sucursal debe coincidir con la
+        de la zona elegida. Evita aplicar el factor de una
+        provincia distinta a la del sitio real de la obra.
+        """
+
+        super().clean()
+
+        if self.sucursal_id and self.zona_id:
+            if self.sucursal.provincia != self.zona.provincia:
+                raise ValidationError(
+                    {
+                        "zona": _(
+                            "La zona elegida (%(zona_provincia)s) no "
+                            "coincide con la provincia de la "
+                            "sucursal (%(sucursal_provincia)s)."
+                        )
+                        % {
+                            "zona_provincia": self.zona.provincia,
+                            "sucursal_provincia": self.sucursal.provincia,
+                        }
+                    }
+                )
 
     # ======================================================
     # REPRESENTACIÓN

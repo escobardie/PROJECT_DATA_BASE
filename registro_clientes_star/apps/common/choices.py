@@ -174,3 +174,129 @@ class EstadoDispositivoInstaladoChoices(models.TextChoices):
     REEMPLAZADO = "reemplazado", _("Reemplazado")
     FUERA_SERVICIO = "fuera_servicio", _("Fuera de servicio")
 
+# ======================================================
+# TIPO DE ORDEN DE TRABAJO
+# ======================================================
+
+
+class TipoOrdenTrabajoChoices(models.TextChoices):
+    """
+    Tipos de trabajos que puede gestionar una OT.
+    """
+
+    INSTALACION = (
+        "INSTALACION",
+        _("Instalación"),
+    )
+
+    MANTENIMIENTO = (
+        "MANTENIMIENTO",
+        _("Mantenimiento"),
+    )
+
+    REPARACION = (
+        "REPARACION",
+        _("Reparación"),
+    )
+
+    REINSTALACION = (
+        "REINSTALACION",
+        _("Reinstalación"),
+    )
+
+    DESINSTALACION = (
+        "DESINSTALACION",
+        _("Desinstalación"),
+    )
+
+    VISITA_TECNICA = (
+        "VISITA_TECNICA",
+        _("Visita técnica"),
+    )
+
+    INSPECCION = (
+        "INSPECCION",
+        _("Inspección"),
+    )
+
+    GARANTIA = (
+        "GARANTIA",
+        _("Garantía"),
+    )
+
+
+# ======================================================
+# ESTADO DE ORDEN DE TRABAJO
+# ======================================================
+
+
+class EstadoOrdenTrabajoChoices(models.TextChoices):
+    """
+    Estados del ciclo de vida de una OT.
+    """
+
+    BORRADOR = (
+        "BORRADOR",
+        _("Borrador"),
+    )
+
+    PENDIENTE = (
+        "PENDIENTE",
+        _("Pendiente"),
+    )
+
+    PROGRAMADA = (
+        "PROGRAMADA",
+        _("Programada"),
+    )
+
+    EN_PROCESO = (
+        "EN_PROCESO",
+        _("En proceso"),
+    )
+
+    PAUSADA = (
+        "PAUSADA",
+        _("Pausada"),
+    )
+
+    FINALIZADA = (
+        "FINALIZADA",
+        _("Finalizada"),
+    )
+
+    CANCELADA = (
+        "CANCELADA",
+        _("Cancelada"),
+    )
+
+
+# ======================================================
+# PRIORIDAD
+# ======================================================
+
+
+class PrioridadOrdenTrabajoChoices(models.TextChoices):
+    """
+    Nivel de prioridad de la orden.
+    """
+
+    BAJA = (
+        "BAJA",
+        _("Baja"),
+    )
+
+    MEDIA = (
+        "MEDIA",
+        _("Media"),
+    )
+
+    ALTA = (
+        "ALTA",
+        _("Alta"),
+    )
+
+    URGENTE = (
+        "URGENTE",
+        _("Urgente"),
+    )

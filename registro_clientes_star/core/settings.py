@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'apps.usuarios',
     'apps.telecom',
     'apps.instalacion',
+    'apps.orden_trabajo',
 ]
 
 MIDDLEWARE = [
