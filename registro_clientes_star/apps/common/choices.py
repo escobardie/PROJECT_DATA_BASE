@@ -300,3 +300,30 @@ class PrioridadOrdenTrabajoChoices(models.TextChoices):
         "URGENTE",
         _("Urgente"),
     )
+
+# ======================================================
+# PROPIEDADES DE PROYECTO
+# ======================================================
+
+class EstadoProyectoRequerimientoChoices(models.TextChoices):
+
+    PENDIENTE = (
+        "PENDIENTE",
+        _("Pendiente"),
+    )
+
+    PARCIAL = (
+        "PARCIAL",
+        _("Parcial"),
+    )
+
+    COMPLETADO = (
+        "COMPLETADO",
+        _("Completado"),
+    )
+
+    CANCELADO = (
+        "CANCELADO",
+        _("Cancelado"),
+    )
+

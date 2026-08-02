@@ -39,6 +39,8 @@ INSTALLED_DEVICE_CODE_PREFIX = "IND"
 INSTALLATION_CODE_PREFIX = "INS"
 INSTALLATION_DEVICE_CODE_PREFIX = "INSDSP"
 
+PROJECT_REQUIREMENT_CODE_PREFIX = "RPRY"
+
 # ==========================================================
 # FORMATO DE CÓDIGOS
 # ==========================================================

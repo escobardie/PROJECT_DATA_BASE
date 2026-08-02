@@ -1,2 +1,3 @@
 from .proyecto import Proyecto
-from .detalle_proyecto import DetalleProyecto
+from .proyecto_requerimiento import ProyectoRequerimiento
+# from .detalle_proyecto import DetalleProyecto
