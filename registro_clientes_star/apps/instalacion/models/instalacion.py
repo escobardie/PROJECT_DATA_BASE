@@ -13,6 +13,7 @@ from apps.common.choices import (
 )
 
 from apps.servicio.models import ServicioContratado
+#from apps.orden_trabajo.models import OrdenTrabajo
 
 
 class Instalacion(CodeModel):
@@ -36,9 +37,22 @@ class Instalacion(CodeModel):
         ServicioContratado,
         on_delete=models.PROTECT,
         related_name="instalaciones",
+        blank=True,
+        null=True,
         verbose_name=_("Servicio contratado"),
+        help_text=_(
+            "Servicio contratado al que pertenece la instalación."
+        ),
     )
-
+    # orden_trabajo = models.OneToOneField(
+    #     OrdenTrabajo,
+    #     on_delete=models.PROTECT,
+    #     related_name="instalacion",
+    #     blank=True,
+    #     null=True,
+    #     verbose_name=_("Orden de trabajo"),
+    #     help_text=_("Orden de trabajo asociada a la instalación, si corresponde."),
+    # )
     # ======================================================
     # PLANIFICACIÓN
     # ======================================================
@@ -49,11 +63,13 @@ class Instalacion(CodeModel):
         default=PrioridadInstalacionChoices.NORMAL,
         db_index=True,
         verbose_name=_("Prioridad"),
+        help_text=_("Prioridad de la instalación."),
     )
 
     fecha_programada = models.DateField(
         verbose_name=_("Fecha programada"),
         db_index=True,
+        help_text=_("Fecha en la que se programó la instalación."),
     )
 
     duracion_estimada = models.DurationField(
@@ -73,18 +89,21 @@ class Instalacion(CodeModel):
         default=EstadoInstalacionChoices.PENDIENTE,
         db_index=True,
         verbose_name=_("Estado"),
+        help_text=_("Estado actual de la instalación."),
     )
 
     fecha_inicio = models.DateTimeField(
         blank=True,
         null=True,
         verbose_name=_("Fecha de inicio"),
+        help_text=_("Fecha y hora en que se inició la instalación."),
     )
 
     fecha_finalizacion = models.DateTimeField(
         blank=True,
         null=True,
         verbose_name=_("Fecha de finalización"),
+        help_text=_("Fecha y hora en que se completó la instalación."),
     )
 
     # ======================================================
@@ -95,17 +114,20 @@ class Instalacion(CodeModel):
         max_length=MAX_NAME_LENGTH,
         blank=True,
         verbose_name=_("Recibido por"),
+        help_text=_("Nombre de la persona que recibió la instalación."),
     )
 
     fecha_conformidad = models.DateTimeField(
         blank=True,
         null=True,
         verbose_name=_("Fecha de conformidad"),
+        help_text=_("Fecha y hora en que se confirmó la conformidad de la instalación."),
     )
 
     observaciones_conformidad = models.TextField(
         blank=True,
         verbose_name=_("Observaciones de conformidad"),
+        help_text=_("Observaciones generales sobre la conformidad de la instalación."),
     )
 
     # ======================================================
@@ -115,6 +137,7 @@ class Instalacion(CodeModel):
     observaciones = models.TextField(
         blank=True,
         verbose_name=_("Observaciones"),
+        help_text=_("Observaciones generales sobre la instalación."),
     )
 
     # ======================================================
@@ -144,7 +167,13 @@ class Instalacion(CodeModel):
     # ======================================================
 
     def __str__(self):
-        return f"{self.codigo} - {self.servicio_contratado}"
+        if self.servicio_contratado:
+            return (
+                f"{self.codigo} - "
+                f"{self.servicio_contratado}"
+            )
+
+        return self.codigo
 
     # ======================================================
     # PROPIEDADES
@@ -195,4 +224,37 @@ class Instalacion(CodeModel):
             self.fecha_programada < timezone.localdate()
             and not self.finalizada
             and not self.cancelada
+        )
+
+    @property
+    def tiene_orden_trabajo(self):
+        """
+        Indica si la instalación fue creada desde una orden de trabajo.
+        """
+
+        return hasattr(
+            self,
+            "orden_trabajo",
+        )
+
+
+    @property
+    def tiene_ordenes_relacionadas(self):
+        """
+        Indica si existen órdenes de trabajo relacionadas con esta instalación.
+        """
+
+        return (
+            self.ordenes_trabajo_relacionadas.exists()
+        )
+
+
+    @property
+    def cantidad_ordenes_relacionadas(self):
+        """
+        Devuelve la cantidad de órdenes relacionadas con esta instalación.
+        """
+
+        return (
+            self.ordenes_trabajo_relacionadas.count()
         )
