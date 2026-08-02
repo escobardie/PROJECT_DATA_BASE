@@ -112,20 +112,22 @@ class OrdenTrabajoTecnico(BaseModel):
     # ======================================================
     # VALIDACIONES
     # ======================================================
-
     def clean(self):
         """
         Validaciones de negocio.
         """
-
         super().clean()
+
+        # La orden todavía no fue guardada (caso del admin al crear una OT).
+        if not self.orden_trabajo_id:
+            return
 
         if self.es_principal:
 
             existe_principal = (
                 OrdenTrabajoTecnico.objects
                 .filter(
-                    orden_trabajo=self.orden_trabajo,
+                    orden_trabajo_id=self.orden_trabajo_id,
                     es_principal=True,
                 )
                 .exclude(
@@ -138,11 +140,40 @@ class OrdenTrabajoTecnico(BaseModel):
                 raise ValidationError(
                     {
                         "es_principal": _(
-                            "La orden de trabajo "
-                            "ya tiene un técnico principal."
+                            "La orden de trabajo ya tiene un técnico principal."
                         )
                     }
                 )
+    # def clean(self):
+    #     """
+    #     Validaciones de negocio.
+    #     """
+
+    #     super().clean()
+
+    #     if self.es_principal:
+
+    #         existe_principal = (
+    #             OrdenTrabajoTecnico.objects
+    #             .filter(
+    #                 orden_trabajo=self.orden_trabajo,
+    #                 es_principal=True,
+    #             )
+    #             .exclude(
+    #                 pk=self.pk,
+    #             )
+    #             .exists()
+    #         )
+
+    #         if existe_principal:
+    #             raise ValidationError(
+    #                 {
+    #                     "es_principal": _(
+    #                         "La orden de trabajo "
+    #                         "ya tiene un técnico principal."
+    #                     )
+    #                 }
+    #             )
 
     # ======================================================
     # REPRESENTACIÓN
