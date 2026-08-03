@@ -55,7 +55,7 @@ class PresupuestoTelecom(CodeModel):
         blank=True,
         null=True,
         on_delete=models.PROTECT,
-        related_name="presupuestos",
+        related_name="presupuestos_telecom",
         verbose_name=_("Sucursal"),
     )
     
@@ -63,14 +63,14 @@ class PresupuestoTelecom(CodeModel):
     zona = models.ForeignKey(
         ZonaTelecom,
         on_delete=models.PROTECT,
-        related_name="presupuestos",
+        related_name="presupuestos_telecom",
         verbose_name=_("Zona"),
     )
 
     recargo = models.ForeignKey(
         RecargoTelecom,
         on_delete=models.PROTECT,
-        related_name="presupuestos",
+        related_name="presupuestos_telecom",
         blank=True,
         null=True,
         verbose_name=_("Recargo aplicado"),

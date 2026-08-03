@@ -272,7 +272,7 @@ class EstadoOrdenTrabajoChoices(models.TextChoices):
 
 
 # ======================================================
-# PRIORIDAD
+# PRIORIDAD ORDEN DE TRABAJO
 # ======================================================
 
 
@@ -327,3 +327,148 @@ class EstadoProyectoRequerimientoChoices(models.TextChoices):
         _("Cancelado"),
     )
 
+
+# ======================================================
+# PROPIEDADES DE PRESUPUESTO
+# ======================================================
+
+class EstadoPresupuestoChoices(models.TextChoices):
+
+    BORRADOR = (
+        "BORRADOR",
+        _("Borrador"),
+    )
+
+    ENVIADO = (
+        "ENVIADO",
+        _("Enviado"),
+    )
+
+    APROBADO = (
+        "APROBADO",
+        _("Aprobado"),
+    )
+
+    RECHAZADO = (
+        "RECHAZADO",
+        _("Rechazado"),
+    )
+
+    VENCIDO = (
+        "VENCIDO",
+        _("Vencido"),
+    )
+
+    CANCELADO = (
+        "CANCELADO",
+        _("Cancelado"),
+    )
+
+class TipoConceptoPresupuestoChoices(models.TextChoices):
+    """
+    Tipo de concepto del catálogo de presupuesto.
+    """
+
+    MANO_DE_OBRA = "MANO_DE_OBRA", _("Mano de obra")
+    MATERIAL = "MATERIAL", _("Material")
+    SERVICIO = "SERVICIO", _("Servicio")
+    VIATICO = "VIATICO", _("Viático")
+
+class TipoPresupuestoChoices(models.TextChoices):
+    """
+    Tipo de concepto del catálogo de presupuesto.
+    """
+
+    VENTA = "VENTA", _("Venta")
+    AMPLIACIÓN = "AMPLIACIÓN", _("Ampliación")
+    MANTENIMIENTO = "MANTENIMIENTO", _("Mantenimiento")
+    REPARACIÓN = "REPARACIÓN", _("Reparación")
+    ACTUALIZACIÓN = "ACTUALIZACIÓN", _("Actualización")
+
+class TipoTrabajoPresupuestoChoices(models.TextChoices):
+    """
+    Tipo de trabajo realizado en un presupuesto de presupuesto.
+    """
+
+    INSTALACION = "INSTALACION", _("Instalación")
+    DESINSTALACION = "DESINSTALACION", _("Desinstalación")
+    REINSTALACION = "REINSTALACION", _("Reinstalación")
+
+class UnidadMedidaChoices(models.TextChoices):
+    """
+    Unidades de medida disponibles para los conceptos comerciales.
+    """
+
+    UNIDAD = (
+        "UN",
+        _("Unidad"),
+    )
+
+    METRO = (
+        "M",
+        _("Metro"),
+    )
+
+    METRO_CUADRADO = (
+        "M2",
+        _("Metro cuadrado"),
+    )
+
+    METRO_CUBICO = (
+        "M3",
+        _("Metro cúbico"),
+    )
+
+    HORA = (
+        "H",
+        _("Hora"),
+    )
+
+    DIA = (
+        "D",
+        _("Día"),
+    )
+
+    MES = (
+        "MES",
+        _("Mes"),
+    )
+
+    SERVICIO = (
+        "SER",
+        _("Servicio"),
+    )
+
+    LICENCIA = (
+        "LIC",
+        _("Licencia"),
+    )
+
+    CAJA = (
+        "CAJ",
+        _("Caja"),
+    )
+
+    ROLLO = (
+        "ROL",
+        _("Rollo"),
+    )
+
+    KIT = (
+        "KIT",
+        _("Kit"),
+    )
+
+    LOTE = (
+        "LOT",
+        _("Lote"),
+    )
+
+class MonedaPresupuestoChoices(models.TextChoices):
+    """
+    Monedas soportadas por el sistema.
+    """
+
+    ARS = "ARS", _("Peso argentino")
+    USD = "USD", _("Dólar estadounidense")
+    EUR = "EUR", _("Euro")

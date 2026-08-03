@@ -41,6 +41,9 @@ INSTALLATION_DEVICE_CODE_PREFIX = "INSDSP"
 
 PROJECT_REQUIREMENT_CODE_PREFIX = "RPRY"
 
+BUDGET_CODE_PREFIX = "PRE"
+BUDGET_ITEM_CODE_PREFIX = "IPRE"
+
 # ==========================================================
 # FORMATO DE CÓDIGOS
 # ==========================================================
