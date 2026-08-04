@@ -1,16 +1,17 @@
 from django.contrib import admin
+from django.utils.translation import gettext_lazy as _
 
 from apps.orden_trabajo.models import OrdenTrabajo
 
-from .orden_trabajo_tecnico import OrdenTrabajoTecnicoInline
-from .orden_trabajo_seguimiento import OrdenTrabajoSeguimientoInline
 from .orden_trabajo_archivo import OrdenTrabajoArchivoInline
+from .orden_trabajo_seguimiento import OrdenTrabajoSeguimientoInline
+from .orden_trabajo_tecnico import OrdenTrabajoTecnicoInline
 
 
 @admin.register(OrdenTrabajo)
 class OrdenTrabajoAdmin(admin.ModelAdmin):
     """
-    Administración de órdenes de trabajo.
+    Administración de las órdenes de trabajo.
     """
 
     # ======================================================
@@ -20,22 +21,32 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
     list_display = (
         "codigo",
         "titulo",
-        "tipo",
         "estado",
         "prioridad",
-        "fecha_programada",
-        "sucursal",
+        "tipo",
         "responsable",
-        "tiene_instalacion",
-        "esta_finalizada",
+        "proyecto",
+        "servicio_contratado",
+        "presupuesto_telecom",
+        "fecha_programada",
+        "mostrar_instalacion",
+        "mostrar_facturada",
+        "mostrar_cobrada",
+    )
+
+    list_display_links = (
+        "codigo",
+        "titulo",
     )
 
     list_filter = (
-        "tipo",
         "estado",
         "prioridad",
+        "tipo",
         "responsable",
-        "fecha_programada",
+        "proyecto",
+        "servicio_contratado",
+        "presupuesto_telecom",
     )
 
     search_fields = (
@@ -43,8 +54,10 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
         "titulo",
         "descripcion",
         "sucursal__nombre",
-        "proyecto__titulo",
-        "servicio_contratado__nombre_comercial",
+        "proyecto__codigo",
+        "proyecto__nombre",
+        "servicio_contratado__codigo",
+        "presupuesto_telecom__codigo",
         "responsable__username",
         "responsable__first_name",
         "responsable__last_name",
@@ -54,15 +67,81 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
         "-created_at",
     )
 
-    list_select_related = (
-        "sucursal",
-        "proyecto",
-        "servicio_contratado",
-        "presupuesto_telecom",
-        "instalacion",
-        "instalacion_relacionada",
-        "responsable",
+
+    empty_value_display = "-"
+
+    save_on_top = True
+    save_as = True
+    list_per_page = 25
+    show_full_result_count = False
+
+    # ======================================================
+    # COLUMNAS PERSONALIZADAS
+    # ======================================================
+
+    @admin.display(
+        boolean=True,
+        description=_("Inst."),
     )
+    def mostrar_instalacion(self, obj):
+        """
+        Indica si la orden tiene una instalación asociada.
+        """
+
+        return obj.tiene_instalacion
+
+    @admin.display(
+        boolean=True,
+        description=_("Fact."),
+    )
+    def mostrar_facturada(self, obj):
+        """
+        Indica si la orden fue facturada.
+        """
+
+        return obj.esta_facturada
+
+    @admin.display(
+        boolean=True,
+        description=_("Cob."),
+    )
+    def mostrar_cobrada(self, obj):
+        """
+        Indica si la orden fue cobrada.
+        """
+
+        return obj.esta_cobrada
+
+    # ======================================================
+    # QUERYSET
+    # ======================================================
+
+    def get_queryset(self, request):
+        """
+        Optimiza las relaciones utilizadas en el listado
+        del administrador.
+        """
+
+        return (
+            super()
+            .get_queryset(request)
+            .select_related(
+                "sucursal",
+                "proyecto",
+                "responsable",
+                "servicio_contratado",
+                "presupuesto_telecom",
+                "instalacion",
+                "instalacion_relacionada",
+                "usuario_recepcion_solicitud",
+                "usuario_inicio",
+                "usuario_finalizacion",
+                "usuario_envio_cliente",
+                "usuario_aceptacion",
+                "usuario_facturacion",
+                "usuario_cobro",
+            )
+        )
 
     # ======================================================
     # AUTOCOMPLETE
@@ -76,6 +155,7 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
         "instalacion",
         "instalacion_relacionada",
         "responsable",
+        "usuario_recepcion_solicitud",
         "usuario_inicio",
         "usuario_finalizacion",
         "usuario_envio_cliente",
@@ -99,9 +179,8 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
     # ======================================================
 
     fieldsets = (
-
         (
-            "Información general",
+            _("Información general"),
             {
                 "fields": (
                     "codigo",
@@ -110,33 +189,35 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
                 ),
             },
         ),
-
         (
-            "Origen de la orden",
+            _("Relaciones"),
             {
                 "fields": (
-                    "sucursal",
-                    "proyecto",
-                    "servicio_contratado",
-                    "presupuesto_telecom",
-                    "instalacion",
-                    "instalacion_relacionada",
-                ),
-            },
-        ),
-
-        (
-            "Clasificación",
-            {
-                "fields": (
-                    "tipo",
-                    "estado",
-                    "prioridad",
+                    (
+                        "sucursal",
+                        "proyecto",
+                    ),
+                    (
+                        "servicio_contratado",
+                        "presupuesto_telecom",
+                    ),
                 ),
             },
         ),
         (
-            "Recepción de la solicitud",
+            _("Clasificación"),
+            {
+                "fields": (
+                    (
+                        "tipo",
+                        "estado",
+                        "prioridad",
+                    ),
+                ),
+            },
+        ),
+        (
+            _("Recepción de la solicitud"),
             {
                 "fields": (
                     (
@@ -146,9 +227,8 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
                 ),
             },
         ),
-
         (
-            "Planificación",
+            _("Planificación y ejecución"),
             {
                 "fields": (
                     "responsable",
@@ -164,23 +244,64 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
                 ),
             },
         ),
-
         (
-            "Trazabilidad",
+            _("Instalaciones"),
             {
+                "fields": (
+                    "instalacion",
+                    "instalacion_relacionada",
+                ),
+            },
+        ),
+        (
+            _("Envío al cliente"),
+            {
+                "classes": (
+                    "collapse",
+                ),
                 "fields": (
                     (
                         "fecha_envio_cliente",
                         "usuario_envio_cliente",
                     ),
+                ),
+            },
+        ),
+        (
+            _("Aceptación del cliente"),
+            {
+                "classes": (
+                    "collapse",
+                ),
+                "fields": (
                     (
                         "fecha_aceptacion",
                         "usuario_aceptacion",
                     ),
+                ),
+            },
+        ),
+        (
+            _("Facturación"),
+            {
+                "classes": (
+                    "collapse",
+                ),
+                "fields": (
                     (
                         "fecha_facturacion",
                         "usuario_facturacion",
                     ),
+                ),
+            },
+        ),
+        (
+            _("Cobro"),
+            {
+                "classes": (
+                    "collapse",
+                ),
+                "fields": (
                     (
                         "fecha_cobro",
                         "usuario_cobro",
@@ -188,18 +309,16 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
                 ),
             },
         ),
-
         (
-            "Observaciones",
+            _("Observaciones"),
             {
                 "fields": (
                     "observaciones",
                 ),
             },
         ),
-
         (
-            "Auditoría",
+            _("Auditoría"),
             {
                 "classes": (
                     "collapse",
@@ -210,7 +329,6 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
                 ),
             },
         ),
-
     )
 
     # ======================================================
@@ -222,3 +340,9 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
         OrdenTrabajoSeguimientoInline,
         OrdenTrabajoArchivoInline,
     )
+
+    # ======================================================
+    # ACCIONES
+    # ======================================================
+
+    actions = ()

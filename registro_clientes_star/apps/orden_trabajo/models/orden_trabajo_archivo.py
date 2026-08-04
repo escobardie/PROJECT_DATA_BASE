@@ -1,9 +1,7 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-
 from apps.common.models import BaseModel
-
 from apps.usuarios.models import Usuario
 
 from .orden_trabajo import OrdenTrabajo
@@ -11,10 +9,10 @@ from .orden_trabajo import OrdenTrabajo
 
 class OrdenTrabajoArchivo(BaseModel):
     """
-    Archivos asociados a una orden de trabajo.
+    Representa un archivo asociado a una orden de trabajo.
 
-    Permite almacenar evidencias, documentos,
-    fotografías y archivos técnicos.
+    Permite almacenar documentos, evidencias, fotografías
+    y archivos técnicos relacionados con la ejecución de la orden.
     """
 
     # ======================================================
@@ -45,6 +43,10 @@ class OrdenTrabajoArchivo(BaseModel):
     archivo = models.FileField(
         upload_to="ordenes_trabajo/%Y/%m/",
         verbose_name=_("Archivo"),
+        help_text=_(
+            "Documento, fotografía o archivo técnico "
+            "relacionado con la orden de trabajo."
+        ),
     )
 
     descripcion = models.CharField(
@@ -52,6 +54,9 @@ class OrdenTrabajoArchivo(BaseModel):
         blank=True,
         default="",
         verbose_name=_("Descripción"),
+        help_text=_(
+            "Descripción breve del contenido del archivo."
+        ),
     )
 
     # ======================================================
@@ -59,47 +64,18 @@ class OrdenTrabajoArchivo(BaseModel):
     # ======================================================
 
     class Meta:
-
-        verbose_name = _(
-            "Archivo de orden de trabajo"
-        )
-
-        verbose_name_plural = _(
-            "Archivos de órdenes de trabajo"
-        )
+        verbose_name = _("Archivo de orden de trabajo")
+        verbose_name_plural = _("Archivos de órdenes de trabajo")
 
         ordering = (
             "-created_at",
         )
-
-        indexes = [
-
-            models.Index(
-                fields=[
-                    "orden_trabajo",
-                ],
-                name=(
-                    "idx_ot_archivo_ot"
-                ),
-            ),
-
-            models.Index(
-                fields=[
-                    "usuario",
-                ],
-                name=(
-                    "idx_ot_archivo_usuario"
-                ),
-            ),
-
-        ]
 
     # ======================================================
     # REPRESENTACIÓN
     # ======================================================
 
     def __str__(self):
-
         return (
             f"{self.orden_trabajo.codigo} - "
             f"{self.archivo.name}"

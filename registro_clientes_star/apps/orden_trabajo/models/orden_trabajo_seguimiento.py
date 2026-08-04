@@ -1,9 +1,7 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-
 from apps.common.models import BaseModel
-
 from apps.usuarios.models import Usuario
 
 from .orden_trabajo import OrdenTrabajo
@@ -11,10 +9,11 @@ from .orden_trabajo import OrdenTrabajo
 
 class OrdenTrabajoSeguimiento(BaseModel):
     """
-    Registro histórico de avances de una orden de trabajo.
+    Representa una actualización dentro del historial
+    de una orden de trabajo.
 
-    Cada registro representa una actualización,
-    comentario o avance realizado durante la ejecución.
+    Cada seguimiento registra un comentario, novedad
+    o avance informado por un usuario.
     """
 
     # ======================================================
@@ -34,16 +33,20 @@ class OrdenTrabajoSeguimiento(BaseModel):
         related_name="seguimientos_ordenes_trabajo",
         verbose_name=_("Usuario"),
         help_text=_(
-            "Usuario que registra el seguimiento."
+            "Usuario que registró el seguimiento."
         ),
     )
 
     # ======================================================
-    # INFORMACIÓN
+    # INFORMACIÓN GENERAL
     # ======================================================
 
     comentario = models.TextField(
         verbose_name=_("Comentario"),
+        help_text=_(
+            "Descripción de la novedad, avance o actualización "
+            "de la orden de trabajo."
+        ),
     )
 
     # ======================================================
@@ -51,39 +54,21 @@ class OrdenTrabajoSeguimiento(BaseModel):
     # ======================================================
 
     class Meta:
-        verbose_name = _(
-            "Seguimiento de orden de trabajo"
-        )
-
-        verbose_name_plural = _(
-            "Seguimientos de órdenes de trabajo"
-        )
+        verbose_name = _("Seguimiento de orden de trabajo")
+        verbose_name_plural = _("Seguimientos de órdenes de trabajo")
 
         ordering = (
             "-created_at",
         )
 
         indexes = [
-
             models.Index(
                 fields=[
                     "orden_trabajo",
                     "created_at",
                 ],
-                name=(
-                    "idx_ot_seg_fecha"
-                ),
+                name="idx_ot_seg_fecha",
             ),
-
-            models.Index(
-                fields=[
-                    "usuario",
-                ],
-                name=(
-                    "idx_ot_seg_usuario"
-                ),
-            ),
-
         ]
 
     # ======================================================
@@ -91,7 +76,6 @@ class OrdenTrabajoSeguimiento(BaseModel):
     # ======================================================
 
     def __str__(self):
-
         return (
             f"{self.orden_trabajo.codigo} - "
             f"{self.created_at:%d/%m/%Y %H:%M}"

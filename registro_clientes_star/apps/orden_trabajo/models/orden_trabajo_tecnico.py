@@ -2,9 +2,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-
 from apps.common.models import BaseModel
-
 from apps.usuarios.models import Usuario
 
 from .orden_trabajo import OrdenTrabajo
@@ -12,10 +10,10 @@ from .orden_trabajo import OrdenTrabajo
 
 class OrdenTrabajoTecnico(BaseModel):
     """
-    Técnicos asignados a una orden de trabajo.
+    Representa la asignación de un técnico a una orden de trabajo.
 
-    Permite asociar uno o varios usuarios
-    responsables de ejecutar una OT.
+    Una orden puede tener varios técnicos asignados,
+    pero solamente uno puede marcarse como principal.
     """
 
     # ======================================================
@@ -37,15 +35,15 @@ class OrdenTrabajoTecnico(BaseModel):
     )
 
     # ======================================================
-    # INFORMACIÓN
+    # INFORMACIÓN GENERAL
     # ======================================================
 
     es_principal = models.BooleanField(
         default=False,
         verbose_name=_("Técnico principal"),
         help_text=_(
-            "Indica si es el técnico principal "
-            "de la orden."
+            "Indica si el técnico es el responsable principal "
+            "de ejecutar la orden."
         ),
     )
 
@@ -60,13 +58,8 @@ class OrdenTrabajoTecnico(BaseModel):
     # ======================================================
 
     class Meta:
-        verbose_name = _(
-            "Técnico asignado"
-        )
-
-        verbose_name_plural = _(
-            "Técnicos asignados"
-        )
+        verbose_name = _("Técnico asignado")
+        verbose_name_plural = _("Técnicos asignados")
 
         ordering = (
             "-es_principal",
@@ -74,113 +67,57 @@ class OrdenTrabajoTecnico(BaseModel):
         )
 
         constraints = [
-
             models.UniqueConstraint(
                 fields=[
                     "orden_trabajo",
                     "tecnico",
                 ],
-                name=(
-                    "unique_ot_tecnico"
-                ),
+                name="unique_ot_tecnico",
             ),
-
-        ]
-
-        indexes = [
-
-            models.Index(
-                fields=[
-                    "orden_trabajo",
-                ],
-                name=(
-                    "idx_ot_tecnico_ot"
-                ),
-            ),
-
-            models.Index(
-                fields=[
-                    "tecnico",
-                ],
-                name=(
-                    "idx_ot_tecnico_usuario"
-                ),
-            ),
-
         ]
 
     # ======================================================
     # VALIDACIONES
     # ======================================================
+
     def clean(self):
         """
-        Validaciones de negocio.
+        Valida que una orden tenga como máximo
+        un técnico principal.
         """
+
         super().clean()
 
-        # La orden todavía no fue guardada (caso del admin al crear una OT).
-        if not self.orden_trabajo_id:
+        if not self.orden_trabajo_id or not self.es_principal:
             return
 
-        if self.es_principal:
-
-            existe_principal = (
-                OrdenTrabajoTecnico.objects
-                .filter(
-                    orden_trabajo_id=self.orden_trabajo_id,
-                    es_principal=True,
-                )
-                .exclude(
-                    pk=self.pk,
-                )
-                .exists()
+        existe_principal = (
+            OrdenTrabajoTecnico.objects
+            .filter(
+                orden_trabajo_id=self.orden_trabajo_id,
+                es_principal=True,
             )
+            .exclude(
+                pk=self.pk,
+            )
+            .exists()
+        )
 
-            if existe_principal:
-                raise ValidationError(
-                    {
-                        "es_principal": _(
-                            "La orden de trabajo ya tiene un técnico principal."
-                        )
-                    }
-                )
-    # def clean(self):
-    #     """
-    #     Validaciones de negocio.
-    #     """
-
-    #     super().clean()
-
-    #     if self.es_principal:
-
-    #         existe_principal = (
-    #             OrdenTrabajoTecnico.objects
-    #             .filter(
-    #                 orden_trabajo=self.orden_trabajo,
-    #                 es_principal=True,
-    #             )
-    #             .exclude(
-    #                 pk=self.pk,
-    #             )
-    #             .exists()
-    #         )
-
-    #         if existe_principal:
-    #             raise ValidationError(
-    #                 {
-    #                     "es_principal": _(
-    #                         "La orden de trabajo "
-    #                         "ya tiene un técnico principal."
-    #                     )
-    #                 }
-    #             )
+        if existe_principal:
+            raise ValidationError(
+                {
+                    "es_principal": _(
+                        "La orden de trabajo ya tiene "
+                        "un técnico principal."
+                    )
+                }
+            )
 
     # ======================================================
     # REPRESENTACIÓN
     # ======================================================
 
     def __str__(self):
-
         return (
             f"{self.orden_trabajo.codigo} - "
             f"{self.tecnico}"
