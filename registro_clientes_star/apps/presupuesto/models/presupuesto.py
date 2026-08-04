@@ -17,7 +17,7 @@ from apps.common.constants import (
 )
 
 from apps.common.choices import (
-    MonedaPresupuestoChoices,
+    MonedaChoices,
 )
 
 from apps.common.choices import (
@@ -93,8 +93,8 @@ class Presupuesto(CodeModel):
 
     moneda = models.CharField(
         max_length=3,
-        choices=MonedaPresupuestoChoices.choices,
-        default=MonedaPresupuestoChoices.ARS,
+        choices=MonedaChoices.choices,
+        default=MonedaChoices.ARS,
         verbose_name=_("Moneda"),
     )
 

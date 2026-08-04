@@ -31,18 +31,28 @@ class EstadoDispositivoChoices(models.TextChoices):
     REEMPLAZADO = "REEMPLAZADO", _("Reemplazado")
     DANADO = "DANADO", _("Dañado")
 
+class MonedaChoices(models.TextChoices):
+    """
+    Monedas soportadas por el sistema.
+    """
+
+    ARS = "ARS", _("Peso argentino")
+    USD = "USD", _("Dólar estadounidense")
+
 
 class EstadoProyectoChoices(models.TextChoices):
     """
     Estados posibles de un proyecto.
     """
-
-    PLANIFICADO = "PLANIFICADO", _("Planificado")
+    BORRADOR = "BORRADOR", _("Borrador")
     PRESUPUESTADO = "PRESUPUESTADO", _("Presupuestado")
+    ENVIADO = "ENVIADO", _("Enviado")
     APROBADO = "APROBADO", _("Aprobado")
     EN_EJECUCION = "EN_EJECUCION", _("En ejecución")
-    FINALIZADO = "FINALIZADO", _("Finalizado")
+    RECHAZADO = "RECHAZADO", _("Rechazado")
+    VENCIDO = "VENCIDO", _("Vencido")
     CANCELADO = "CANCELADO", _("Cancelado")
+    FINALIZADO = "FINALIZADO", _("Finalizado")
 
 class EstadoFacturaChoices(models.TextChoices):
     """
@@ -82,14 +92,6 @@ class TipoConceptoTelecomChoices(models.TextChoices):
     MANO_DE_OBRA = "MANO_DE_OBRA", _("Mano de obra")
     MATERIAL = "MATERIAL", _("Material")
 
-
-class MonedaChoices(models.TextChoices):
-    """
-    Moneda en la que está expresado un importe.
-    """
-
-    PESOS = "PESOS", _("Pesos")
-    DOLAR = "DOLAR", _("Dólares")
 
 
 class TipoTrabajoTelecomChoices(models.TextChoices):
@@ -327,6 +329,72 @@ class EstadoProyectoRequerimientoChoices(models.TextChoices):
         _("Cancelado"),
     )
 
+class TipoProyectoItemChoices(models.TextChoices):
+
+    DISPOSITIVO = "DIS", _("Dispositivo")
+
+    SERVICIO = "SER", _("Servicio")
+
+    MATERIAL = "MAT", _("Material")
+
+    MANO_OBRA = "MOB", _("Mano de obra")
+
+    LICENCIA = "LIC", _("Licencia")
+
+    OTRO = "OTR", _("Otro")
+
+class EstadoProyectoChoices(models.TextChoices):
+    """
+    Estados del ciclo de vida de un proyecto.
+    """
+
+    BORRADOR = (
+        "BORRADOR",
+        _("Borrador"),
+    )
+
+    PENDIENTE_APROBACION = (
+        "PENDIENTE_APROBACION",
+        _("Pendiente de aprobación"),
+    )
+
+    APROBADO = (
+        "APROBADO",
+        _("Aprobado"),
+    )
+
+    PLANIFICADO = (
+        "PLANIFICADO",
+        _("Planificado"),
+    )
+
+    EN_EJECUCION = (
+        "EN_EJECUCION",
+        _("En ejecución"),
+    )
+
+    FINALIZADO = (
+        "FINALIZADO",
+        _("Finalizado"),
+    )
+
+    CANCELADO = (
+        "CANCELADO",
+        _("Cancelado"),
+    )
+
+class TipoProyectoDetalleChoices(models.TextChoices):
+    """
+    Tipos de conceptos que pueden formar parte de un proyecto.
+    """
+
+    DISPOSITIVO = "DISPOSITIVO", _("Dispositivo")
+    SERVICIO = "SERVICIO", _("Servicio")
+    MATERIAL = "MATERIAL", _("Material")
+    MANO_OBRA = "MANO_OBRA", _("Mano de obra")
+    LICENCIA = "LICENCIA", _("Licencia")
+    VIATICO = "VIATICO", _("Viático")
+    OTRO = "OTRO", _("Otro")
 
 # ======================================================
 # PROPIEDADES DE PRESUPUESTO
@@ -464,11 +532,3 @@ class UnidadMedidaChoices(models.TextChoices):
         _("Lote"),
     )
 
-class MonedaPresupuestoChoices(models.TextChoices):
-    """
-    Monedas soportadas por el sistema.
-    """
-
-    ARS = "ARS", _("Peso argentino")
-    USD = "USD", _("Dólar estadounidense")
-    EUR = "EUR", _("Euro")

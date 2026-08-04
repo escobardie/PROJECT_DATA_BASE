@@ -43,6 +43,7 @@ PROJECT_REQUIREMENT_CODE_PREFIX = "RPRY"
 
 BUDGET_CODE_PREFIX = "PRE"
 BUDGET_ITEM_CODE_PREFIX = "IPRE"
+PROJECT_DETAIL_CODE_PREFIX = "PRD"
 
 # ==========================================================
 # FORMATO DE CÓDIGOS

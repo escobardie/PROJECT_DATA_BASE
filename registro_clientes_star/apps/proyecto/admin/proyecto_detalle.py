@@ -1,15 +1,13 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
-from apps.proyecto.models import Proyecto
-
-from .inlines import ProyectoDetalleInline
+from apps.proyecto.models import ProyectoDetalle
 
 
-@admin.register(Proyecto)
-class ProyectoAdmin(admin.ModelAdmin):
+@admin.register(ProyectoDetalle)
+class ProyectoDetalleAdmin(admin.ModelAdmin):
     """
-    Administración de proyectos.
+    Administración de los detalles de los proyectos.
     """
 
     # ======================================================
@@ -18,48 +16,50 @@ class ProyectoAdmin(admin.ModelAdmin):
 
     list_display = (
         "codigo",
-        "nombre",
-        "sucursal",
-        "responsable",
-        "estado",
-        "cantidad_detalles",
-        "cantidad_ordenes_trabajo",
-        "fecha_creacion",
+        "proyecto",
+        "proyecto_estado",
+        "orden",
+        "tipo",
+        "dispositivo",
+        "descripcion",
+        "cantidad",
+        "unidad",
+        "precio_unitario",
         "total",
     )
 
     list_display_links = (
         "codigo",
-        "nombre",
+        "descripcion",
     )
 
     list_filter = (
-        "estado",
-        "moneda",
-        "responsable",
-        "sucursal",
+        "tipo",
+        "proyecto__estado",
+        "proyecto__sucursal",
+        "dispositivo__modelo__marca",
     )
 
     search_fields = (
         "codigo",
-        "nombre",
         "descripcion",
-        "sucursal__nombre",
-        "sucursal__cuenta_cliente__nombre",
-        "responsable__username",
-        "responsable__first_name",
-        "responsable__last_name",
+        "proyecto__codigo",
+        "proyecto__nombre",
+        "dispositivo__codigo",
+        "dispositivo__nombre_comercial",
+        "dispositivo__modelo__nombre",
     )
 
     ordering = (
-        "-created_at",
+        "proyecto",
+        "orden",
     )
 
-    date_hierarchy = "fecha_creacion"
-
     list_select_related = (
-        "sucursal",
-        "responsable",
+        "proyecto",
+        "dispositivo",
+        "dispositivo__modelo",
+        "dispositivo__modelo__marca",
     )
 
     empty_value_display = "-"
@@ -71,6 +71,17 @@ class ProyectoAdmin(admin.ModelAdmin):
     list_per_page = 25
 
     show_full_result_count = False
+
+    # ======================================================
+    # COLUMNAS PERSONALIZADAS
+    # ======================================================
+
+    @admin.display(
+        description=_("Estado"),
+        ordering="proyecto__estado",
+    )
+    def proyecto_estado(self, obj):
+        return obj.proyecto.estado
 
     # ======================================================
     # QUERYSET
@@ -85,8 +96,10 @@ class ProyectoAdmin(admin.ModelAdmin):
             super()
             .get_queryset(request)
             .select_related(
-                "sucursal",
-                "responsable",
+                "proyecto",
+                "dispositivo",
+                "dispositivo__modelo",
+                "dispositivo__modelo__marca",
             )
         )
 
@@ -95,8 +108,8 @@ class ProyectoAdmin(admin.ModelAdmin):
     # ======================================================
 
     autocomplete_fields = (
-        "sucursal",
-        "responsable",
+        "proyecto",
+        "dispositivo",
     )
 
     # ======================================================
@@ -106,8 +119,6 @@ class ProyectoAdmin(admin.ModelAdmin):
     readonly_fields = (
         "codigo",
         "subtotal",
-        "descuento_total",
-        "impuestos",
         "total",
         "created_at",
         "updated_at",
@@ -124,44 +135,40 @@ class ProyectoAdmin(admin.ModelAdmin):
             {
                 "fields": (
                     "codigo",
-                    "sucursal",
-                    "responsable",
-                    "nombre",
+                    "proyecto",
+                    "orden",
+                    "tipo",
+                    "dispositivo",
                     "descripcion",
                 ),
             },
         ),
 
         (
-            _("Condiciones comerciales"),
-            {
-                "fields": (
-                    "moneda",
-                ),
-            },
-        ),
-
-        (
-            _("Fechas"),
+            _("Cantidades"),
             {
                 "fields": (
                     (
-                        "fecha_creacion",
-                        "fecha_planificada",
-                    ),
-                    (
-                        "fecha_inicio",
-                        "fecha_finalizacion",
+                        "cantidad",
+                        "unidad",
                     ),
                 ),
             },
         ),
 
         (
-            _("Estado"),
+            _("Importes"),
             {
                 "fields": (
-                    "estado",
+                    (
+                        "precio_unitario",
+                        "descuento_importe",
+                    ),
+                    (
+                        "impuestos_importe",
+                        "subtotal",
+                    ),
+                    "total",
                 ),
             },
         ),
@@ -171,22 +178,6 @@ class ProyectoAdmin(admin.ModelAdmin):
             {
                 "fields": (
                     "observaciones",
-                ),
-            },
-        ),
-
-        (
-            _("Resumen económico"),
-            {
-                "fields": (
-                    (
-                        "subtotal",
-                        "descuento_total",
-                    ),
-                    (
-                        "impuestos",
-                        "total",
-                    ),
                 ),
             },
         ),
@@ -206,31 +197,6 @@ class ProyectoAdmin(admin.ModelAdmin):
 
     )
 
-    # ======================================================
-    # INLINES
-    # ======================================================
-
-    inlines = (
-        ProyectoDetalleInline,
-    )
-
-
-    # ======================================================
-    # COLUMNAS PERSONALIZADAS
-    # ======================================================
-
-    @admin.display(
-        description=_("Detalles"),
-    )
-    def cantidad_detalles(self, obj):
-        return obj.cantidad_detalles
-
-
-    @admin.display(
-        description=_("OT"),
-    )
-    def cantidad_ordenes_trabajo(self, obj):
-        return obj.cantidad_ordenes_trabajo
     # ======================================================
     # ACCIONES
     # ======================================================

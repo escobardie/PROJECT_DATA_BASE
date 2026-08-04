@@ -1,2 +1,2 @@
-from .proyecto import Proyecto
-from .proyecto_requerimiento import ProyectoRequerimiento
+from .proyecto import ProyectoAdmin
+from .proyecto_detalle import ProyectoDetalleAdmin

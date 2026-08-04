@@ -1,11 +1,11 @@
 CREATE DATABASE cuenta_cliente_star;
-USE cuenta_cliente_star4;
+USE cuenta_cliente_star6;
 SHOW TABLES;
 
 CREATE USER 'user1_star1'@'localhost' IDENTIFIED BY 'user1_star1-1';
 GRANT ALL PRIVILEGES ON cuenta_cliente_star.* TO 'user1_star1'@'localhost';
 
-DROP DATABASE IF EXISTS cuenta_cliente_star5;
+DROP DATABASE IF EXISTS cuenta_cliente_star6;
 
 CREATE DATABASE cuenta_cliente_star4;
 GRANT ALL PRIVILEGES ON cuenta_cliente_star4.* TO 'user1_star1'@'localhost';

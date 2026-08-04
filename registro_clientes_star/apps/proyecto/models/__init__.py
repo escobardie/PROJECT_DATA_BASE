@@ -1,3 +1,8 @@
 from .proyecto import Proyecto
-from .proyecto_requerimiento import ProyectoRequerimiento
-# from .detalle_proyecto import DetalleProyecto
+from .proyecto_detalle import ProyectoDetalle
+
+
+__all__ = (
+    "Proyecto",
+    "ProyectoDetalle",
+)

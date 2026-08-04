@@ -1,30 +1,52 @@
 from django.contrib import admin
+from django.utils.translation import gettext_lazy as _
 
-from apps.proyecto.models import ProyectoRequerimiento
+from apps.proyecto.models import ProyectoDetalle
 
 
-class ProyectoRequerimientoInline(admin.TabularInline):
+class ProyectoDetalleInline(admin.TabularInline):
     """
-    Requerimientos técnicos planificados para el proyecto.
+    Detalles del proyecto.
     """
 
-    model = ProyectoRequerimiento
+    model = ProyectoDetalle
 
     extra = 1
+
+    classes = (
+        "tabular",
+    )
+
+    verbose_name = _("Detalle")
+
+    verbose_name_plural = _("Detalles")
+
+    ordering = (
+        "orden",
+    )
+    sortable_field_name = "orden"
 
     autocomplete_fields = (
         "dispositivo",
     )
 
-    fields = (
-        "dispositivo",
-        "cantidad",
-        "descripcion",
-    )
-
-    ordering = (
-        "dispositivo",
-        "codigo",
-    )
-
     show_change_link = True
+
+    fields = (
+        "orden",
+        "tipo",
+        "dispositivo",
+        "descripcion",
+        "cantidad",
+        "unidad",
+        "precio_unitario",
+        "descuento_importe",
+        "impuestos_importe",
+        "subtotal",
+        "total",
+    )
+
+    readonly_fields = (
+        "subtotal",
+        "total",
+    )

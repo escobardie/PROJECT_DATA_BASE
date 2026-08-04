@@ -64,7 +64,7 @@ class ConceptoTelecom(CodeModel):
     moneda = models.CharField(
         max_length=10,
         choices=MonedaChoices.choices,
-        default=MonedaChoices.PESOS,
+        default=MonedaChoices.ARS,
         verbose_name=_("Moneda"),
     )
 
