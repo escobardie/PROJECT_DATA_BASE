@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.core.exceptions import ObjectDoesNotExist
 from django.utils.translation import gettext_lazy as _
 
 from apps.orden_trabajo.models import OrdenTrabajo
@@ -53,11 +54,27 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
         "codigo",
         "titulo",
         "descripcion",
+
+        # Sucursal
         "sucursal__nombre",
+
+        # Proyecto
         "proyecto__codigo",
         "proyecto__nombre",
+
+        # Servicio contratado
         "servicio_contratado__codigo",
+
+        # Presupuesto Telecom
         "presupuesto_telecom__codigo",
+
+        # Instalación generada
+        "instalacion__codigo",
+
+        # Instalación preexistente relacionada
+        "instalacion_relacionada__codigo",
+
+        # Responsable
         "responsable__username",
         "responsable__first_name",
         "responsable__last_name",
@@ -66,7 +83,6 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
     ordering = (
         "-created_at",
     )
-
 
     empty_value_display = "-"
 
@@ -85,7 +101,7 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
     )
     def mostrar_instalacion(self, obj):
         """
-        Indica si la orden tiene una instalación asociada.
+        Indica si la orden generó una instalación.
         """
 
         return obj.tiene_instalacion
@@ -113,6 +129,29 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
         return obj.esta_cobrada
 
     # ======================================================
+    # INFORMACIÓN DERIVADA
+    # ======================================================
+
+    @admin.display(
+        description=_("Instalación generada"),
+    )
+    def instalacion_generada(self, obj):
+        """
+        Devuelve la instalación generada por esta orden.
+
+        La relación se obtiene de forma inversa desde
+        Instalacion.orden_trabajo.
+        """
+
+        if not obj or not obj.pk:
+            return "-"
+
+        try:
+            return obj.instalacion
+        except ObjectDoesNotExist:
+            return "-"
+
+    # ======================================================
     # QUERYSET
     # ======================================================
 
@@ -126,13 +165,18 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
             super()
             .get_queryset(request)
             .select_related(
+                # Origen
                 "sucursal",
                 "proyecto",
-                "responsable",
                 "servicio_contratado",
                 "presupuesto_telecom",
+
+                # Instalaciones
                 "instalacion",
                 "instalacion_relacionada",
+
+                # Responsables y trazabilidad
+                "responsable",
                 "usuario_recepcion_solicitud",
                 "usuario_inicio",
                 "usuario_finalizacion",
@@ -152,7 +196,6 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
         "proyecto",
         "servicio_contratado",
         "presupuesto_telecom",
-        "instalacion",
         "instalacion_relacionada",
         "responsable",
         "usuario_recepcion_solicitud",
@@ -170,6 +213,7 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
 
     readonly_fields = (
         "codigo",
+        "instalacion_generada",
         "created_at",
         "updated_at",
     )
@@ -190,7 +234,7 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
             },
         ),
         (
-            _("Relaciones"),
+            _("Origen de la orden"),
             {
                 "fields": (
                     (
@@ -248,8 +292,14 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
             _("Instalaciones"),
             {
                 "fields": (
-                    "instalacion",
+                    "instalacion_generada",
                     "instalacion_relacionada",
+                ),
+                "description": _(
+                    "La instalación generada es el resultado técnico "
+                    "de esta orden. La instalación relacionada es una "
+                    "instalación preexistente sobre la cual se ejecuta "
+                    "el trabajo."
                 ),
             },
         ),

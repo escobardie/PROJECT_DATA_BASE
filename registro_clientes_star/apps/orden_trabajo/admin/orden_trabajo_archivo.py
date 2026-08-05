@@ -38,7 +38,8 @@ class OrdenTrabajoArchivoInline(admin.TabularInline):
 @admin.register(OrdenTrabajoArchivo)
 class OrdenTrabajoArchivoAdmin(admin.ModelAdmin):
     """
-    Administración de archivos asociados a órdenes de trabajo.
+    Administración de archivos asociados
+    a órdenes de trabajo.
     """
 
     # ======================================================
@@ -48,20 +49,20 @@ class OrdenTrabajoArchivoAdmin(admin.ModelAdmin):
     list_display = (
         "orden_trabajo",
         "usuario",
-        "nombre_archivo",
+        "mostrar_nombre_archivo",
         "descripcion",
         "created_at",
     )
 
     list_display_links = (
         "orden_trabajo",
-        "nombre_archivo",
+        "mostrar_nombre_archivo",
     )
 
     list_filter = (
-        "created_at",
         "usuario",
         "orden_trabajo__estado",
+        "orden_trabajo__prioridad",
     )
 
     search_fields = (
@@ -77,8 +78,6 @@ class OrdenTrabajoArchivoAdmin(admin.ModelAdmin):
     ordering = (
         "-created_at",
     )
-
-    date_hierarchy = "created_at"
 
     empty_value_display = "-"
 
@@ -96,15 +95,13 @@ class OrdenTrabajoArchivoAdmin(admin.ModelAdmin):
         description=_("Archivo"),
         ordering="archivo",
     )
-    def nombre_archivo(self, obj):
+    def mostrar_nombre_archivo(self, obj):
         """
-        Muestra solamente el nombre del archivo.
+        Muestra únicamente el nombre del archivo,
+        sin incluir la ruta de almacenamiento.
         """
 
-        if not obj.archivo:
-            return "-"
-
-        return obj.archivo.name.rsplit("/", 1)[-1]
+        return obj.nombre_archivo
 
     # ======================================================
     # QUERYSET
@@ -112,7 +109,7 @@ class OrdenTrabajoArchivoAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         """
-        Optimiza las consultas utilizadas en el listado.
+        Optimiza las relaciones utilizadas en el listado.
         """
 
         return (

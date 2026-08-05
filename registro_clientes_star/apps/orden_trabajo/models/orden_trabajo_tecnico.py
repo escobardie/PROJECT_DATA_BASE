@@ -51,6 +51,10 @@ class OrdenTrabajoTecnico(BaseModel):
         blank=True,
         default="",
         verbose_name=_("Observaciones"),
+        help_text=_(
+            "Observaciones relacionadas con la participación "
+            "del técnico en la orden de trabajo."
+        ),
     )
 
     # ======================================================

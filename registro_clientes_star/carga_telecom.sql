@@ -1,4 +1,4 @@
-USE cuenta_cliente_star5;
+USE cuenta_cliente_star6;
 SHOW TABLES;
 SELECT * FROM telecom_zonatelecom;
 

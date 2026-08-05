@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -15,7 +16,6 @@ from apps.common.choices import (
 )
 
 from apps.cuenta_cliente.models import Sucursal
-from apps.instalacion.models import Instalacion
 from apps.proyecto.models import Proyecto
 from apps.servicio.models import ServicioContratado
 from apps.telecom.models import PresupuestoTelecom
@@ -26,11 +26,13 @@ class OrdenTrabajo(CodeModel):
     """
     Representa una orden de trabajo operativa.
 
-    Gestiona la planificación, ejecución y trazabilidad de trabajos
-    técnicos relacionados con una sucursal, proyecto, servicio
-    contratado, presupuesto Telecom o instalación.
+    Gestiona la planificación, ejecución y trazabilidad
+    de trabajos técnicos relacionados con una sucursal,
+    proyecto, servicio contratado, presupuesto Telecom
+    o instalación existente.
 
-    Una orden de trabajo no almacena información económica.
+    Una orden de trabajo puede generar una instalación,
+    pero no almacena información económica.
     """
 
     CODE_PREFIX = ORDER_CODE_PREFIX
@@ -91,21 +93,8 @@ class OrdenTrabajo(CodeModel):
         ),
     )
 
-    instalacion = models.OneToOneField(
-        Instalacion,
-        on_delete=models.PROTECT,
-        related_name="orden_trabajo",
-        blank=True,
-        null=True,
-        verbose_name=_("Instalación"),
-        help_text=_(
-            "Instalación generada o asociada directamente "
-            "con esta orden de trabajo."
-        ),
-    )
-
     instalacion_relacionada = models.ForeignKey(
-        Instalacion,
+        "instalacion.Instalacion",
         on_delete=models.PROTECT,
         related_name="ordenes_trabajo_relacionadas",
         blank=True,
@@ -411,10 +400,110 @@ class OrdenTrabajo(CodeModel):
 
     def clean(self):
         """
-        Ejecuta las validaciones de negocio de la orden de trabajo.
+        Valida la coherencia temporal y administrativa
+        de la orden de trabajo.
         """
 
         super().clean()
+
+        errores = {}
+
+        if (
+            self.fecha_inicio
+            and self.fecha_recepcion_solicitud
+            and self.fecha_inicio < self.fecha_recepcion_solicitud
+        ):
+            errores["fecha_inicio"] = _(
+                "La fecha de inicio no puede ser anterior "
+                "a la recepción de la solicitud."
+            )
+
+        if (
+            self.fecha_finalizacion
+            and not self.fecha_inicio
+        ):
+            errores["fecha_finalizacion"] = _(
+                "Debe registrar la fecha de inicio antes "
+                "de indicar la fecha de finalización."
+            )
+
+        if (
+            self.fecha_inicio
+            and self.fecha_finalizacion
+            and self.fecha_finalizacion < self.fecha_inicio
+        ):
+            errores["fecha_finalizacion"] = _(
+                "La fecha de finalización no puede ser anterior "
+                "a la fecha de inicio."
+            )
+
+        if (
+            self.fecha_envio_cliente
+            and not self.fecha_finalizacion
+        ):
+            errores["fecha_envio_cliente"] = _(
+                "Debe finalizar la orden antes de enviarla al cliente."
+            )
+
+        if (
+            self.fecha_finalizacion
+            and self.fecha_envio_cliente
+            and self.fecha_envio_cliente < self.fecha_finalizacion
+        ):
+            errores["fecha_envio_cliente"] = _(
+                "La fecha de envío al cliente no puede ser anterior "
+                "a la finalización de la orden."
+            )
+
+        if (
+            self.fecha_aceptacion
+            and not self.fecha_envio_cliente
+        ):
+            errores["fecha_aceptacion"] = _(
+                "Debe registrar el envío al cliente antes "
+                "de registrar su aceptación."
+            )
+
+        if (
+            self.fecha_envio_cliente
+            and self.fecha_aceptacion
+            and self.fecha_aceptacion < self.fecha_envio_cliente
+        ):
+            errores["fecha_aceptacion"] = _(
+                "La fecha de aceptación no puede ser anterior "
+                "a la fecha de envío al cliente."
+            )
+
+        if (
+            self.fecha_facturacion
+            and not self.fecha_finalizacion
+        ):
+            errores["fecha_facturacion"] = _(
+                "Debe finalizar la orden antes de registrar "
+                "su facturación."
+            )
+
+        if (
+            self.fecha_cobro
+            and not self.fecha_facturacion
+        ):
+            errores["fecha_cobro"] = _(
+                "Debe registrar la facturación antes "
+                "de registrar el cobro."
+            )
+
+        if (
+            self.fecha_facturacion
+            and self.fecha_cobro
+            and self.fecha_cobro < self.fecha_facturacion
+        ):
+            errores["fecha_cobro"] = _(
+                "La fecha de cobro no puede ser anterior "
+                "a la fecha de facturación."
+            )
+
+        if errores:
+            raise ValidationError(errores)
 
     # ======================================================
     # REPRESENTACIÓN
@@ -433,11 +522,18 @@ class OrdenTrabajo(CodeModel):
     @property
     def tiene_instalacion(self):
         """
-        Indica si la orden posee una instalación asociada
-        directamente.
+        Indica si la orden de trabajo generó una instalación.
+
+        La instalación se obtiene mediante la relación inversa
+        del OneToOneField definido en Instalacion.
         """
 
-        return self.instalacion_id is not None
+        try:
+            self.instalacion
+        except ObjectDoesNotExist:
+            return False
+
+        return True
 
     @property
     def tiene_instalacion_relacionada(self):

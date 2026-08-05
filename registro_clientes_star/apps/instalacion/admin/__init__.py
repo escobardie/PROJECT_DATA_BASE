@@ -1,3 +1,3 @@
-from .instalacion import *
-from .instalacion_dispositivo import *
-from .instalacion_tecnico import *
+from .instalacion import InstalacionAdmin
+from .instalacion_dispositivo import InstalacionDispositivoAdmin
+from .instalacion_tecnico import InstalacionTecnicoAdmin

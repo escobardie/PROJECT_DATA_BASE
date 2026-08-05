@@ -1,10 +1,8 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from apps.common.models import CodeModel
-from apps.common.constants import (
-    INSTALLATION_TECHNICIAN_CODE_PREFIX,
-)
+from apps.common.models import BaseModel
 
 from apps.common.choices import (
     RolTecnicoInstalacionChoices,
@@ -15,15 +13,14 @@ from apps.usuarios.models import Usuario
 from .instalacion import Instalacion
 
 
-class InstalacionTecnico(CodeModel):
+class InstalacionTecnico(BaseModel):
     """
-    Representa la participación de un técnico en una instalación.
+    Representa la asignación de un técnico a una instalación.
 
-    Una instalación puede tener uno o varios técnicos participantes.
-    Cada técnico cumple un rol determinado dentro del trabajo realizado.
+    Una instalación puede tener varios técnicos
+    participantes, pero solamente uno puede ser
+    el responsable principal.
     """
-
-    CODE_PREFIX = INSTALLATION_TECHNICIAN_CODE_PREFIX
 
     # ======================================================
     # RELACIONES
@@ -44,7 +41,7 @@ class InstalacionTecnico(CodeModel):
     )
 
     # ======================================================
-    # PARTICIPACIÓN
+    # INFORMACIÓN GENERAL
     # ======================================================
 
     rol = models.CharField(
@@ -52,24 +49,28 @@ class InstalacionTecnico(CodeModel):
         choices=RolTecnicoInstalacionChoices.choices,
         default=RolTecnicoInstalacionChoices.AYUDANTE,
         verbose_name=_("Rol"),
+        help_text=_(
+            "Rol desempeñado por el técnico durante la instalación."
+        ),
     )
 
     es_responsable = models.BooleanField(
         default=False,
-        db_index=True,
         verbose_name=_("Responsable"),
         help_text=_(
-            "Indica si este técnico es el responsable principal de la instalación."
+            "Indica si este técnico es el responsable principal "
+            "de la instalación."
         ),
     )
 
-    # ======================================================
-    # OBSERVACIONES
-    # ======================================================
-
     observaciones = models.TextField(
         blank=True,
+        default="",
         verbose_name=_("Observaciones"),
+        help_text=_(
+            "Observaciones relacionadas con la participación "
+            "del técnico."
+        ),
     )
 
     # ======================================================
@@ -91,17 +92,48 @@ class InstalacionTecnico(CodeModel):
                     "instalacion",
                     "usuario",
                 ],
-                name="unique_tecnico_por_instalacion",
-            )
-        ]
-
-        indexes = [
-            models.Index(
-                fields=[
-                    "es_responsable",
-                ]
+                name="unique_instalacion_tecnico",
             ),
         ]
+
+    # ======================================================
+    # VALIDACIONES
+    # ======================================================
+
+    def clean(self):
+        """
+        Valida que exista un único técnico responsable
+        por instalación.
+        """
+
+        super().clean()
+
+        if not self.instalacion_id:
+            return
+
+        if self.es_responsable:
+
+            existe_responsable = (
+                InstalacionTecnico.objects
+                .filter(
+                    instalacion_id=self.instalacion_id,
+                    es_responsable=True,
+                )
+                .exclude(
+                    pk=self.pk,
+                )
+                .exists()
+            )
+
+            if existe_responsable:
+                raise ValidationError(
+                    {
+                        "es_responsable": _(
+                            "La instalación ya tiene "
+                            "un técnico responsable."
+                        )
+                    }
+                )
 
     # ======================================================
     # REPRESENTACIÓN
@@ -109,8 +141,8 @@ class InstalacionTecnico(CodeModel):
 
     def __str__(self):
         return (
-            f"{self.usuario} - "
-            f"{self.instalacion.codigo}"
+            f"{self.instalacion.codigo} - "
+            f"{self.usuario}"
         )
 
     # ======================================================
@@ -130,3 +162,11 @@ class InstalacionTecnico(CodeModel):
             self.rol
             == RolTecnicoInstalacionChoices.SUPERVISOR
         )
+
+    @property
+    def es_principal(self):
+        """
+        Alias semántico de es_responsable.
+        """
+
+        return self.es_responsable

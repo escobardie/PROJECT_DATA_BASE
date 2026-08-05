@@ -34,7 +34,8 @@ class OrdenTrabajoTecnicoInline(admin.TabularInline):
 @admin.register(OrdenTrabajoTecnico)
 class OrdenTrabajoTecnicoAdmin(admin.ModelAdmin):
     """
-    Administración de técnicos asignados a órdenes de trabajo.
+    Administración de técnicos asignados
+    a órdenes de trabajo.
     """
 
     # ======================================================
@@ -65,6 +66,7 @@ class OrdenTrabajoTecnicoAdmin(admin.ModelAdmin):
         "tecnico__username",
         "tecnico__first_name",
         "tecnico__last_name",
+        "observaciones",
     )
 
     ordering = (
@@ -74,6 +76,8 @@ class OrdenTrabajoTecnicoAdmin(admin.ModelAdmin):
     )
 
     empty_value_display = "-"
+
+    save_on_top = True
 
     list_per_page = 25
 
@@ -85,7 +89,8 @@ class OrdenTrabajoTecnicoAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         """
-        Optimiza las relaciones utilizadas en el listado.
+        Optimiza las relaciones utilizadas
+        en el listado.
         """
 
         return (

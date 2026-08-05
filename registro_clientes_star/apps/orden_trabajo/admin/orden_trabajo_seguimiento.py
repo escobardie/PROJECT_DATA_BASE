@@ -57,9 +57,9 @@ class OrdenTrabajoSeguimientoAdmin(admin.ModelAdmin):
     )
 
     list_filter = (
-        "created_at",
         "usuario",
         "orden_trabajo__estado",
+        "orden_trabajo__prioridad",
     )
 
     search_fields = (
@@ -74,8 +74,6 @@ class OrdenTrabajoSeguimientoAdmin(admin.ModelAdmin):
     ordering = (
         "-created_at",
     )
-
-    date_hierarchy = "created_at"
 
     empty_value_display = "-"
 
@@ -94,13 +92,15 @@ class OrdenTrabajoSeguimientoAdmin(admin.ModelAdmin):
     )
     def comentario_resumido(self, obj):
         """
-        Muestra un resumen del comentario.
+        Muestra una versión resumida del comentario.
         """
 
-        if len(obj.comentario) <= 80:
-            return obj.comentario
+        comentario = obj.comentario or ""
 
-        return f"{obj.comentario[:80]}..."
+        if len(comentario) <= 80:
+            return comentario
+
+        return f"{comentario[:80]}..."
 
     # ======================================================
     # QUERYSET
@@ -108,7 +108,7 @@ class OrdenTrabajoSeguimientoAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         """
-        Optimiza las consultas del administrador.
+        Optimiza las relaciones utilizadas en el listado.
         """
 
         return (
@@ -143,7 +143,6 @@ class OrdenTrabajoSeguimientoAdmin(admin.ModelAdmin):
     # ======================================================
 
     fieldsets = (
-
         (
             _("Información"),
             {
@@ -154,7 +153,6 @@ class OrdenTrabajoSeguimientoAdmin(admin.ModelAdmin):
                 ),
             },
         ),
-
         (
             _("Auditoría"),
             {
@@ -167,7 +165,6 @@ class OrdenTrabajoSeguimientoAdmin(admin.ModelAdmin):
                 ),
             },
         ),
-
     )
 
     # ======================================================

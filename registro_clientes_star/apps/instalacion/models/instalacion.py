@@ -1,30 +1,31 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.common.models import CodeModel
+
 from apps.common.constants import (
     INSTALLATION_CODE_PREFIX,
     MAX_NAME_LENGTH,
 )
+
 from apps.common.choices import (
     EstadoInstalacionChoices,
     PrioridadInstalacionChoices,
 )
 
-from apps.servicio.models import ServicioContratado
-#from apps.orden_trabajo.models import OrdenTrabajo
-
 
 class Instalacion(CodeModel):
     """
-    Representa un trabajo técnico realizado sobre un servicio contratado.
+    Representa el resultado técnico de una orden de trabajo.
 
-    Una instalación agrupa los dispositivos instalados, los técnicos
-    participantes y toda la información relacionada con el trabajo.
+    Una instalación documenta los equipos físicos instalados,
+    los técnicos participantes, la ejecución del trabajo
+    y la conformidad del cliente.
 
-    No almacena información del cliente ni de la sucursal, ya que estos
-    datos se obtienen a través del ServicioContratado.
+    El proyecto, la sucursal, el servicio contratado y otros
+    datos de origen se obtienen mediante la orden de trabajo.
     """
 
     CODE_PREFIX = INSTALLATION_CODE_PREFIX
@@ -33,26 +34,16 @@ class Instalacion(CodeModel):
     # RELACIONES
     # ======================================================
 
-    servicio_contratado = models.ForeignKey(
-        ServicioContratado,
+    orden_trabajo = models.OneToOneField(
+        "orden_trabajo.OrdenTrabajo",
         on_delete=models.PROTECT,
-        related_name="instalaciones",
-        blank=True,
-        null=True,
-        verbose_name=_("Servicio contratado"),
+        related_name="instalacion",
+        verbose_name=_("Orden de trabajo"),
         help_text=_(
-            "Servicio contratado al que pertenece la instalación."
+            "Orden de trabajo que dio origen a esta instalación."
         ),
     )
-    # orden_trabajo = models.OneToOneField(
-    #     OrdenTrabajo,
-    #     on_delete=models.PROTECT,
-    #     related_name="instalacion",
-    #     blank=True,
-    #     null=True,
-    #     verbose_name=_("Orden de trabajo"),
-    #     help_text=_("Orden de trabajo asociada a la instalación, si corresponde."),
-    # )
+
     # ======================================================
     # PLANIFICACIÓN
     # ======================================================
@@ -63,20 +54,26 @@ class Instalacion(CodeModel):
         default=PrioridadInstalacionChoices.NORMAL,
         db_index=True,
         verbose_name=_("Prioridad"),
-        help_text=_("Prioridad de la instalación."),
+        help_text=_(
+            "Prioridad operativa de la instalación."
+        ),
     )
 
     fecha_programada = models.DateField(
-        verbose_name=_("Fecha programada"),
         db_index=True,
-        help_text=_("Fecha en la que se programó la instalación."),
+        verbose_name=_("Fecha programada"),
+        help_text=_(
+            "Fecha prevista para ejecutar la instalación."
+        ),
     )
 
     duracion_estimada = models.DurationField(
         blank=True,
         null=True,
         verbose_name=_("Duración estimada"),
-        help_text=_("Tiempo estimado para completar la instalación."),
+        help_text=_(
+            "Tiempo estimado para completar la instalación."
+        ),
     )
 
     # ======================================================
@@ -89,21 +86,27 @@ class Instalacion(CodeModel):
         default=EstadoInstalacionChoices.PENDIENTE,
         db_index=True,
         verbose_name=_("Estado"),
-        help_text=_("Estado actual de la instalación."),
+        help_text=_(
+            "Estado actual de la instalación."
+        ),
     )
 
     fecha_inicio = models.DateTimeField(
         blank=True,
         null=True,
         verbose_name=_("Fecha de inicio"),
-        help_text=_("Fecha y hora en que se inició la instalación."),
+        help_text=_(
+            "Fecha y hora reales de inicio de la instalación."
+        ),
     )
 
     fecha_finalizacion = models.DateTimeField(
         blank=True,
         null=True,
         verbose_name=_("Fecha de finalización"),
-        help_text=_("Fecha y hora en que se completó la instalación."),
+        help_text=_(
+            "Fecha y hora reales de finalización de la instalación."
+        ),
     )
 
     # ======================================================
@@ -113,21 +116,30 @@ class Instalacion(CodeModel):
     recibido_por = models.CharField(
         max_length=MAX_NAME_LENGTH,
         blank=True,
+        default="",
         verbose_name=_("Recibido por"),
-        help_text=_("Nombre de la persona que recibió la instalación."),
+        help_text=_(
+            "Nombre de la persona que recibió la instalación."
+        ),
     )
 
     fecha_conformidad = models.DateTimeField(
         blank=True,
         null=True,
         verbose_name=_("Fecha de conformidad"),
-        help_text=_("Fecha y hora en que se confirmó la conformidad de la instalación."),
+        help_text=_(
+            "Fecha y hora en que se registró la conformidad."
+        ),
     )
 
     observaciones_conformidad = models.TextField(
         blank=True,
+        default="",
         verbose_name=_("Observaciones de conformidad"),
-        help_text=_("Observaciones generales sobre la conformidad de la instalación."),
+        help_text=_(
+            "Observaciones relacionadas con la recepción "
+            "y conformidad de la instalación."
+        ),
     )
 
     # ======================================================
@@ -136,8 +148,11 @@ class Instalacion(CodeModel):
 
     observaciones = models.TextField(
         blank=True,
+        default="",
         verbose_name=_("Observaciones"),
-        help_text=_("Observaciones generales sobre la instalación."),
+        help_text=_(
+            "Observaciones generales sobre la instalación."
+        ),
     )
 
     # ======================================================
@@ -147,6 +162,7 @@ class Instalacion(CodeModel):
     class Meta:
         verbose_name = _("Instalación")
         verbose_name_plural = _("Instalaciones")
+
         ordering = (
             "prioridad",
             "fecha_programada",
@@ -158,25 +174,126 @@ class Instalacion(CodeModel):
                 fields=[
                     "estado",
                     "fecha_programada",
-                ]
+                ],
+                name="idx_inst_estado_fecha",
             ),
         ]
+
+    # ======================================================
+    # VALIDACIONES
+    # ======================================================
+
+    def clean(self):
+        """
+        Valida la coherencia temporal de la instalación.
+        """
+
+        super().clean()
+
+        errores = {}
+
+        if (
+            self.fecha_inicio
+            and self.fecha_inicio.date() < self.fecha_programada
+        ):
+            errores["fecha_inicio"] = _(
+                "La fecha de inicio no puede ser anterior "
+                "a la fecha programada."
+            )
+
+        if (
+            self.fecha_finalizacion
+            and not self.fecha_inicio
+        ):
+            errores["fecha_finalizacion"] = _(
+                "Debe registrar la fecha de inicio antes "
+                "de indicar la fecha de finalización."
+            )
+
+        if (
+            self.fecha_inicio
+            and self.fecha_finalizacion
+            and self.fecha_finalizacion < self.fecha_inicio
+        ):
+            errores["fecha_finalizacion"] = _(
+                "La fecha de finalización no puede ser anterior "
+                "a la fecha de inicio."
+            )
+
+        if (
+            self.fecha_conformidad
+            and not self.fecha_finalizacion
+        ):
+            errores["fecha_conformidad"] = _(
+                "Debe finalizar la instalación antes "
+                "de registrar la conformidad."
+            )
+
+        if (
+            self.fecha_finalizacion
+            and self.fecha_conformidad
+            and self.fecha_conformidad < self.fecha_finalizacion
+        ):
+            errores["fecha_conformidad"] = _(
+                "La fecha de conformidad no puede ser anterior "
+                "a la finalización de la instalación."
+            )
+
+        if errores:
+            raise ValidationError(errores)
 
     # ======================================================
     # REPRESENTACIÓN
     # ======================================================
 
     def __str__(self):
-        if self.servicio_contratado:
-            return (
-                f"{self.codigo} - "
-                f"{self.servicio_contratado}"
-            )
-
-        return self.codigo
+        return (
+            f"{self.codigo} - "
+            f"{self.orden_trabajo.codigo}"
+        )
 
     # ======================================================
-    # PROPIEDADES
+    # PROPIEDADES DE ORIGEN
+    # ======================================================
+
+    @property
+    def proyecto(self):
+        """
+        Devuelve el proyecto asociado a la orden,
+        si corresponde.
+        """
+
+        return self.orden_trabajo.proyecto
+
+    @property
+    def sucursal(self):
+        """
+        Devuelve la sucursal asociada a la orden,
+        si corresponde.
+        """
+
+        return self.orden_trabajo.sucursal
+
+    @property
+    def servicio_contratado(self):
+        """
+        Devuelve el servicio contratado asociado a la orden,
+        si corresponde.
+        """
+
+        return self.orden_trabajo.servicio_contratado
+
+    @property
+    def presupuesto_telecom(self):
+        """
+        Devuelve el presupuesto Telecom asociado a la orden,
+        si corresponde.
+        """
+
+        return self.orden_trabajo.presupuesto_telecom
+
+    # ======================================================
+    # PROPIEDADES DE ESTADO
     # ======================================================
 
     @property
@@ -217,7 +334,8 @@ class Instalacion(CodeModel):
     @property
     def esta_vencida(self):
         """
-        Determina si una instalación programada se encuentra vencida.
+        Indica si la fecha programada ya pasó y la instalación
+        aún no fue finalizada ni cancelada.
         """
 
         return (
@@ -226,35 +344,24 @@ class Instalacion(CodeModel):
             and not self.cancelada
         )
 
-    @property
-    def tiene_orden_trabajo(self):
-        """
-        Indica si la instalación fue creada desde una orden de trabajo.
-        """
-
-        return hasattr(
-            self,
-            "orden_trabajo",
-        )
-
+    # ======================================================
+    # PROPIEDADES RELACIONADAS
+    # ======================================================
 
     @property
     def tiene_ordenes_relacionadas(self):
         """
-        Indica si existen órdenes de trabajo relacionadas con esta instalación.
+        Indica si existen otras órdenes ejecutadas
+        sobre esta instalación.
         """
 
-        return (
-            self.ordenes_trabajo_relacionadas.exists()
-        )
-
+        return self.ordenes_trabajo_relacionadas.exists()
 
     @property
     def cantidad_ordenes_relacionadas(self):
         """
-        Devuelve la cantidad de órdenes relacionadas con esta instalación.
+        Devuelve la cantidad de órdenes ejecutadas
+        sobre esta instalación.
         """
 
-        return (
-            self.ordenes_trabajo_relacionadas.count()
-        )
+        return self.ordenes_trabajo_relacionadas.count()

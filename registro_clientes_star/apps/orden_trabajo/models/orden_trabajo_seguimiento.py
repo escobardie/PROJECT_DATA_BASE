@@ -76,7 +76,13 @@ class OrdenTrabajoSeguimiento(BaseModel):
     # ======================================================
 
     def __str__(self):
+        if self.created_at:
+            return (
+                f"{self.orden_trabajo.codigo} - "
+                f"{self.created_at:%d/%m/%Y %H:%M}"
+            )
+
         return (
             f"{self.orden_trabajo.codigo} - "
-            f"{self.created_at:%d/%m/%Y %H:%M}"
+            f"{_('Seguimiento sin guardar')}"
         )

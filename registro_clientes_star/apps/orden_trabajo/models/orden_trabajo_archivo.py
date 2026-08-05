@@ -78,5 +78,21 @@ class OrdenTrabajoArchivo(BaseModel):
     def __str__(self):
         return (
             f"{self.orden_trabajo.codigo} - "
-            f"{self.archivo.name}"
+            f"{self.nombre_archivo}"
         )
+
+    # ======================================================
+    # PROPIEDADES
+    # ======================================================
+
+    @property
+    def nombre_archivo(self):
+        """
+        Devuelve únicamente el nombre del archivo,
+        sin incluir la ruta de almacenamiento.
+        """
+
+        if not self.archivo:
+            return _("Archivo sin cargar")
+
+        return self.archivo.name.rsplit("/", 1)[-1]
