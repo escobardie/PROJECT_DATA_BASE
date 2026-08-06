@@ -6,36 +6,24 @@ from apps.proyecto.models import ProyectoDetalle
 
 class ProyectoDetalleInline(admin.TabularInline):
     """
-    Detalles del proyecto.
+    Detalles comerciales y técnicos incluidos
+    dentro de un proyecto.
     """
 
     model = ProyectoDetalle
 
     extra = 1
 
-    classes = (
-        "tabular",
-    )
-
-    verbose_name = _("Detalle")
-
-    verbose_name_plural = _("Detalles")
-
-    ordering = (
-        "orden",
-    )
-    sortable_field_name = "orden"
-
     autocomplete_fields = (
         "dispositivo",
+        "item_catalogo",
     )
-
-    show_change_link = True
 
     fields = (
         "orden",
         "tipo",
         "dispositivo",
+        "item_catalogo",
         "descripcion",
         "cantidad",
         "unidad",
@@ -50,3 +38,13 @@ class ProyectoDetalleInline(admin.TabularInline):
         "subtotal",
         "total",
     )
+
+    ordering = (
+        "orden",
+        "codigo",
+    )
+
+    show_change_link = True
+
+    verbose_name = _("Detalle del proyecto")
+    verbose_name_plural = _("Detalles del proyecto")

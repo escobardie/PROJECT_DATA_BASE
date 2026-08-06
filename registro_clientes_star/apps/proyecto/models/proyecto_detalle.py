@@ -5,6 +5,8 @@ from django.core.validators import MinValueValidator
 from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 
+from apps.catalogo.models import ItemCatalogo
+
 from apps.common.models import CodeModel
 
 from apps.common.constants import (
@@ -28,12 +30,17 @@ from .proyecto import Proyecto
 
 class ProyectoDetalle(CodeModel):
     """
-    Representa un concepto comercial o técnico incluido en un proyecto.
+    Representa un concepto comercial o técnico incluido
+    dentro de un proyecto.
 
-    Puede corresponder a un dispositivo del catálogo, servicio,
-    material, mano de obra, licencia, viático u otro concepto.
+    El detalle puede originarse desde:
 
-    Los detalles definen el alcance económico y técnico del proyecto.
+    - un dispositivo del catálogo técnico;
+    - un ítem del catálogo general.
+
+    Cada detalle almacena una copia de la descripción,
+    unidad y precio utilizados en el proyecto, para conservar
+    su información histórica aunque el catálogo cambie.
     """
 
     CODE_PREFIX = PROJECT_DETAIL_CODE_PREFIX
@@ -57,7 +64,21 @@ class ProyectoDetalle(CodeModel):
         null=True,
         verbose_name=_("Dispositivo"),
         help_text=_(
-            "Producto del catálogo asociado al detalle, si corresponde."
+            "Dispositivo técnico asociado al detalle, "
+            "si corresponde."
+        ),
+    )
+
+    item_catalogo = models.ForeignKey(
+        ItemCatalogo,
+        on_delete=models.PROTECT,
+        related_name="proyecto_detalles",
+        blank=True,
+        null=True,
+        verbose_name=_("Ítem de catálogo"),
+        help_text=_(
+            "Material, insumo, mano de obra, servicio, licencia "
+            "o viático asociado al detalle."
         ),
     )
 
@@ -68,9 +89,11 @@ class ProyectoDetalle(CodeModel):
     tipo = models.CharField(
         max_length=20,
         choices=TipoProyectoDetalleChoices.choices,
-        default=TipoProyectoDetalleChoices.DISPOSITIVO,
         db_index=True,
         verbose_name=_("Tipo"),
+        help_text=_(
+            "Clasificación comercial o técnica del detalle."
+        ),
     )
 
     # ======================================================
@@ -82,7 +105,7 @@ class ProyectoDetalle(CodeModel):
         default="",
         verbose_name=_("Descripción"),
         help_text=_(
-            "Descripción comercial o técnica del concepto."
+            "Descripción utilizada dentro del proyecto."
         ),
     )
 
@@ -116,7 +139,7 @@ class ProyectoDetalle(CodeModel):
     )
 
     unidad = models.CharField(
-        max_length=5,
+        max_length=10,
         choices=UnidadMedidaChoices.choices,
         default=UnidadMedidaChoices.UNIDAD,
         verbose_name=_("Unidad"),
@@ -210,12 +233,6 @@ class ProyectoDetalle(CodeModel):
                 ],
                 name="idx_proydet_tipo",
             ),
-            models.Index(
-                fields=[
-                    "dispositivo",
-                ],
-                name="idx_proydet_dispositivo",
-            ),
         ]
 
         constraints = [
@@ -224,7 +241,7 @@ class ProyectoDetalle(CodeModel):
                     "proyecto",
                     "orden",
                 ],
-                name="uq_proydet_proy_orden",
+                name="unique_proyecto_detalle_orden",
             ),
         ]
 
@@ -234,36 +251,62 @@ class ProyectoDetalle(CodeModel):
 
     def clean(self):
         """
-        Valida la coherencia del detalle del proyecto.
+        Valida que el detalle tenga exactamente un origen
+        y que dicho origen coincida con el tipo seleccionado.
         """
 
         super().clean()
 
         errores = {}
 
-        if (
-            self.tipo
-            == TipoProyectoDetalleChoices.DISPOSITIVO
-            and not self.dispositivo
-        ):
-            errores["dispositivo"] = _(
-                "Debe seleccionar un dispositivo para un detalle "
-                "clasificado como dispositivo."
+        tiene_dispositivo = self.dispositivo_id is not None
+        tiene_item_catalogo = self.item_catalogo_id is not None
+
+        # Debe existir exactamente uno.
+        if not tiene_dispositivo and not tiene_item_catalogo:
+            mensaje = _(
+                "Debe seleccionar un dispositivo o un ítem de catálogo."
             )
 
-        if (
-            self.tipo
-            != TipoProyectoDetalleChoices.DISPOSITIVO
-            and self.dispositivo
-        ):
-            errores["dispositivo"] = _(
-                "Solo los detalles de tipo dispositivo pueden tener "
-                "un dispositivo asociado."
+            errores["dispositivo"] = mensaje
+            errores["item_catalogo"] = mensaje
+
+        if tiene_dispositivo and tiene_item_catalogo:
+            mensaje = _(
+                "No puede seleccionar simultáneamente "
+                "un dispositivo y un ítem de catálogo."
             )
+
+            errores["dispositivo"] = mensaje
+            errores["item_catalogo"] = mensaje
+
+        # Los dispositivos deben utilizar el tipo DISPOSITIVO.
+        if (
+            tiene_dispositivo
+            and self.tipo
+            != TipoProyectoDetalleChoices.DISPOSITIVO
+        ):
+            errores["tipo"] = _(
+                "Cuando se selecciona un dispositivo, "
+                "el tipo debe ser Dispositivo."
+            )
+
+        # Los ítems deben coincidir con su clasificación.
+        if tiene_item_catalogo:
+            tipo_esperado = self.item_catalogo.tipo
+
+            if self.tipo != tipo_esperado:
+                errores["tipo"] = _(
+                    "El tipo del detalle debe coincidir con el tipo "
+                    "del ítem seleccionado: %(tipo)s."
+                ) % {
+                    "tipo": self.item_catalogo.get_tipo_display(),
+                }
 
         if self.descuento_importe > self.importe_bruto:
             errores["descuento_importe"] = _(
-                "El descuento no puede ser mayor que el importe bruto."
+                "El descuento no puede ser mayor "
+                "que el importe bruto."
             )
 
         if errores:
@@ -273,24 +316,44 @@ class ProyectoDetalle(CodeModel):
     # MÉTODOS DE NEGOCIO
     # ======================================================
 
-    def completar_desde_dispositivo(self):
+    def completar_desde_origen(self):
         """
-        Completa valores comerciales iniciales utilizando
-        el dispositivo seleccionado.
+        Completa valores iniciales desde el dispositivo
+        o desde el ítem de catálogo.
 
-        Los valores ya ingresados manualmente no se reemplazan.
+        Los valores ya cargados manualmente no se reemplazan,
+        salvo el tipo, que debe reflejar el origen seleccionado.
         """
 
-        if not self.dispositivo:
+        if self.dispositivo_id:
+            self.tipo = TipoProyectoDetalleChoices.DISPOSITIVO
+
+            if not self.descripcion:
+                self.descripcion = (
+                    self.dispositivo.nombre_comercial
+                )
+
+            if self.precio_unitario == Decimal("0.00"):
+                self.precio_unitario = (
+                    self.dispositivo.precio_mercado
+                )
+
+            self.unidad = UnidadMedidaChoices.UNIDAD
+
             return
 
-        if not self.descripcion:
-            self.descripcion = self.dispositivo.nombre_comercial
+        if self.item_catalogo_id:
+            self.tipo = self.item_catalogo.tipo
 
-        if self.precio_unitario == Decimal("0.00"):
-            self.precio_unitario = self.dispositivo.precio_mercado
+            if not self.descripcion:
+                self.descripcion = self.item_catalogo.nombre
 
-        self.unidad = UnidadMedidaChoices.UNIDAD
+            if self.precio_unitario == Decimal("0.00"):
+                self.precio_unitario = (
+                    self.item_catalogo.precio_venta
+                )
+
+            self.unidad = self.item_catalogo.unidad
 
     def calcular_importes(self):
         """
@@ -311,10 +374,11 @@ class ProyectoDetalle(CodeModel):
 
     def save(self, *args, **kwargs):
         """
-        Guarda el detalle y actualiza los totales del proyecto.
+        Guarda el detalle, completa los datos desde su origen,
+        calcula los importes y actualiza el proyecto.
         """
 
-        self.completar_desde_dispositivo()
+        self.completar_desde_origen()
         self.calcular_importes()
 
         with transaction.atomic():
@@ -327,7 +391,8 @@ class ProyectoDetalle(CodeModel):
 
     def delete(self, *args, **kwargs):
         """
-        Elimina el detalle y actualiza los totales del proyecto.
+        Elimina el detalle y actualiza los totales
+        del proyecto relacionado.
         """
 
         proyecto = self.proyecto
@@ -355,29 +420,37 @@ class ProyectoDetalle(CodeModel):
     @property
     def importe_bruto(self):
         """
-        Importe anterior a descuentos e impuestos.
+        Devuelve el importe anterior a descuentos e impuestos.
         """
 
-        return (
-            self.cantidad
-            * self.precio_unitario
-        )
+        cantidad = self.cantidad or Decimal("0.00")
+        precio = self.precio_unitario or Decimal("0.00")
+
+        return cantidad * precio
 
     @property
     def es_dispositivo(self):
-        """
-        Indica si el detalle representa un dispositivo.
-        """
-
-        return (
-            self.tipo
-            == TipoProyectoDetalleChoices.DISPOSITIVO
-        )
+        return self.dispositivo_id is not None
 
     @property
-    def es_concepto_libre(self):
+    def es_item_catalogo(self):
+        return self.item_catalogo_id is not None
+
+    @property
+    def origen(self):
         """
-        Indica si el detalle no representa un dispositivo.
+        Devuelve el dispositivo o ítem asociado.
         """
 
-        return not self.es_dispositivo
+        return self.dispositivo or self.item_catalogo
+
+    @property
+    def controla_stock(self):
+        """
+        Indica si el detalle proviene de un ítem inventariable.
+        """
+
+        return bool(
+            self.item_catalogo_id
+            and self.item_catalogo.es_inventariable
+        )

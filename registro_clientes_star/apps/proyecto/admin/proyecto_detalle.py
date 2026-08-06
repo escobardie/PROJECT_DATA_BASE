@@ -7,7 +7,8 @@ from apps.proyecto.models import ProyectoDetalle
 @admin.register(ProyectoDetalle)
 class ProyectoDetalleAdmin(admin.ModelAdmin):
     """
-    Administración de los detalles de los proyectos.
+    Administración de los detalles comerciales
+    y técnicos de los proyectos.
     """
 
     # ======================================================
@@ -20,12 +21,13 @@ class ProyectoDetalleAdmin(admin.ModelAdmin):
         "proyecto_estado",
         "orden",
         "tipo",
-        "dispositivo",
+        "mostrar_origen",
         "descripcion",
         "cantidad",
         "unidad",
         "precio_unitario",
         "total",
+        "is_active",
     )
 
     list_display_links = (
@@ -37,29 +39,39 @@ class ProyectoDetalleAdmin(admin.ModelAdmin):
         "tipo",
         "proyecto__estado",
         "proyecto__sucursal",
+        "item_catalogo__categoria",
+        "item_catalogo__controla_stock",
         "dispositivo__modelo__marca",
+        "is_active",
     )
 
     search_fields = (
+        # Detalle
         "codigo",
         "descripcion",
+
+        # Proyecto
         "proyecto__codigo",
         "proyecto__nombre",
+
+        # Dispositivo
         "dispositivo__codigo",
         "dispositivo__nombre_comercial",
         "dispositivo__modelo__nombre",
+        "dispositivo__modelo__marca__nombre",
+
+        # Ítem del catálogo
+        "item_catalogo__codigo",
+        "item_catalogo__nombre",
+        "item_catalogo__descripcion",
+        "item_catalogo__categoria__codigo",
+        "item_catalogo__categoria__nombre",
     )
 
     ordering = (
         "proyecto",
         "orden",
-    )
-
-    list_select_related = (
-        "proyecto",
-        "dispositivo",
-        "dispositivo__modelo",
-        "dispositivo__modelo__marca",
+        "codigo",
     )
 
     empty_value_display = "-"
@@ -81,7 +93,28 @@ class ProyectoDetalleAdmin(admin.ModelAdmin):
         ordering="proyecto__estado",
     )
     def proyecto_estado(self, obj):
+        """
+        Devuelve el estado del proyecto asociado.
+        """
+
         return obj.proyecto.estado
+
+    @admin.display(
+        description=_("Origen"),
+    )
+    def mostrar_origen(self, obj):
+        """
+        Devuelve el dispositivo o ítem de catálogo
+        asociado al detalle.
+        """
+
+        if obj.dispositivo_id:
+            return obj.dispositivo
+
+        if obj.item_catalogo_id:
+            return obj.item_catalogo
+
+        return "-"
 
     # ======================================================
     # QUERYSET
@@ -89,7 +122,8 @@ class ProyectoDetalleAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         """
-        Optimiza las consultas del administrador.
+        Optimiza las relaciones utilizadas
+        en el listado del administrador.
         """
 
         return (
@@ -97,9 +131,12 @@ class ProyectoDetalleAdmin(admin.ModelAdmin):
             .get_queryset(request)
             .select_related(
                 "proyecto",
+                "proyecto__sucursal",
                 "dispositivo",
                 "dispositivo__modelo",
                 "dispositivo__modelo__marca",
+                "item_catalogo",
+                "item_catalogo__categoria",
             )
         )
 
@@ -110,6 +147,7 @@ class ProyectoDetalleAdmin(admin.ModelAdmin):
     autocomplete_fields = (
         "proyecto",
         "dispositivo",
+        "item_catalogo",
     )
 
     # ======================================================
@@ -118,6 +156,7 @@ class ProyectoDetalleAdmin(admin.ModelAdmin):
 
     readonly_fields = (
         "codigo",
+        "mostrar_origen",
         "subtotal",
         "total",
         "created_at",
@@ -129,21 +168,26 @@ class ProyectoDetalleAdmin(admin.ModelAdmin):
     # ======================================================
 
     fieldsets = (
-
         (
             _("Información general"),
             {
                 "fields": (
                     "codigo",
                     "proyecto",
-                    "orden",
-                    "tipo",
-                    "dispositivo",
+                    (
+                        "orden",
+                        "tipo",
+                    ),
+                    (
+                        "dispositivo",
+                        "item_catalogo",
+                    ),
+                    "mostrar_origen",
                     "descripcion",
+                    "is_active",
                 ),
             },
         ),
-
         (
             _("Cantidades"),
             {
@@ -155,7 +199,6 @@ class ProyectoDetalleAdmin(admin.ModelAdmin):
                 ),
             },
         ),
-
         (
             _("Importes"),
             {
@@ -172,7 +215,6 @@ class ProyectoDetalleAdmin(admin.ModelAdmin):
                 ),
             },
         ),
-
         (
             _("Observaciones"),
             {
@@ -181,7 +223,6 @@ class ProyectoDetalleAdmin(admin.ModelAdmin):
                 ),
             },
         ),
-
         (
             _("Auditoría"),
             {
@@ -194,7 +235,6 @@ class ProyectoDetalleAdmin(admin.ModelAdmin):
                 ),
             },
         ),
-
     )
 
     # ======================================================

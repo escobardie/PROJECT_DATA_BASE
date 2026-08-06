@@ -1,0 +1,2 @@
+from .categoria_catalogo import CategoriaCatalogoAdmin
+from .item_catalogo import ItemCatalogoAdmin

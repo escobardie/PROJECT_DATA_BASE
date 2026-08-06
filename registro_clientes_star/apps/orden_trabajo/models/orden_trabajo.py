@@ -363,34 +363,24 @@ class OrdenTrabajo(CodeModel):
         indexes = [
             models.Index(
                 fields=[
-                    "estado",
-                ],
-                name="idx_ot_estado",
-            ),
-            models.Index(
-                fields=[
-                    "prioridad",
-                ],
-                name="idx_ot_prioridad",
-            ),
-            models.Index(
-                fields=[
-                    "fecha_programada",
-                ],
-                name="idx_ot_fecha_prog",
-            ),
-            models.Index(
-                fields=[
-                    "responsable",
-                ],
-                name="idx_ot_responsable",
-            ),
-            models.Index(
-                fields=[
                     "proyecto",
                     "estado",
                 ],
                 name="idx_ot_proy_estado",
+            ),
+            models.Index(
+                fields=[
+                    "servicio_contratado",
+                    "estado",
+                ],
+                name="idx_ot_serv_estado",
+            ),
+            models.Index(
+                fields=[
+                    "responsable",
+                    "fecha_programada",
+                ],
+                name="idx_ot_resp_fecha",
             ),
         ]
 
@@ -400,13 +390,40 @@ class OrdenTrabajo(CodeModel):
 
     def clean(self):
         """
-        Valida la coherencia temporal y administrativa
+        Valida el origen y la coherencia temporal
         de la orden de trabajo.
         """
 
         super().clean()
 
         errores = {}
+
+        # ==================================================
+        # ORIGEN DE LA ORDEN
+        # ==================================================
+
+        tiene_origen = any(
+            (
+                self.proyecto_id,
+                self.servicio_contratado_id,
+                self.presupuesto_telecom_id,
+            )
+        )
+
+        if not tiene_origen:
+            mensaje = _(
+                "La orden de trabajo debe estar relacionada "
+                "con un proyecto, un servicio contratado "
+                "o un presupuesto Telecom."
+            )
+
+            errores["proyecto"] = mensaje
+            errores["servicio_contratado"] = mensaje
+            errores["presupuesto_telecom"] = mensaje
+
+        # ==================================================
+        # RECEPCIÓN E INICIO
+        # ==================================================
 
         if (
             self.fecha_inicio
@@ -417,6 +434,20 @@ class OrdenTrabajo(CodeModel):
                 "La fecha de inicio no puede ser anterior "
                 "a la recepción de la solicitud."
             )
+
+        if (
+            self.fecha_inicio
+            and self.fecha_programada
+            and self.fecha_inicio < self.fecha_programada
+        ):
+            errores["fecha_inicio"] = _(
+                "La fecha de inicio no puede ser anterior "
+                "a la fecha programada."
+            )
+
+        # ==================================================
+        # FINALIZACIÓN
+        # ==================================================
 
         if (
             self.fecha_finalizacion
@@ -437,12 +468,17 @@ class OrdenTrabajo(CodeModel):
                 "a la fecha de inicio."
             )
 
+        # ==================================================
+        # ENVÍO AL CLIENTE
+        # ==================================================
+
         if (
             self.fecha_envio_cliente
             and not self.fecha_finalizacion
         ):
             errores["fecha_envio_cliente"] = _(
-                "Debe finalizar la orden antes de enviarla al cliente."
+                "Debe finalizar la orden antes "
+                "de enviarla al cliente."
             )
 
         if (
@@ -454,6 +490,10 @@ class OrdenTrabajo(CodeModel):
                 "La fecha de envío al cliente no puede ser anterior "
                 "a la finalización de la orden."
             )
+
+        # ==================================================
+        # ACEPTACIÓN
+        # ==================================================
 
         if (
             self.fecha_aceptacion
@@ -474,14 +514,32 @@ class OrdenTrabajo(CodeModel):
                 "a la fecha de envío al cliente."
             )
 
+        # ==================================================
+        # FACTURACIÓN
+        # ==================================================
+
         if (
             self.fecha_facturacion
             and not self.fecha_finalizacion
         ):
             errores["fecha_facturacion"] = _(
-                "Debe finalizar la orden antes de registrar "
-                "su facturación."
+                "Debe finalizar la orden antes "
+                "de registrar su facturación."
             )
+
+        if (
+            self.fecha_finalizacion
+            and self.fecha_facturacion
+            and self.fecha_facturacion < self.fecha_finalizacion
+        ):
+            errores["fecha_facturacion"] = _(
+                "La fecha de facturación no puede ser anterior "
+                "a la finalización de la orden."
+            )
+
+        # ==================================================
+        # COBRO
+        # ==================================================
 
         if (
             self.fecha_cobro
@@ -586,3 +644,49 @@ class OrdenTrabajo(CodeModel):
         """
 
         return self.fecha_aceptacion is not None
+
+    @property
+    def tiene_proyecto(self):
+        """
+        Indica si la orden proviene de un proyecto.
+        """
+
+        return self.proyecto_id is not None
+
+
+    @property
+    def tiene_servicio_contratado(self):
+        """
+        Indica si la orden está relacionada
+        con un servicio contratado.
+        """
+
+        return self.servicio_contratado_id is not None
+
+
+    @property
+    def tiene_presupuesto_telecom(self):
+        """
+        Indica si la orden proviene
+        de un presupuesto Telecom.
+        """
+
+        return self.presupuesto_telecom_id is not None
+
+
+    @property
+    def origen_principal(self):
+        """
+        Devuelve el origen principal de la orden.
+        """
+
+        if self.proyecto_id:
+            return self.proyecto
+
+        if self.servicio_contratado_id:
+            return self.servicio_contratado
+
+        if self.presupuesto_telecom_id:
+            return self.presupuesto_telecom
+
+        return None

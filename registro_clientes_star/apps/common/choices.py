@@ -385,13 +385,14 @@ class EstadoProyectoChoices(models.TextChoices):
 
 class TipoProyectoDetalleChoices(models.TextChoices):
     """
-    Tipos de conceptos que pueden formar parte de un proyecto.
+    Tipos de conceptos disponibles dentro de un proyecto.
     """
 
     DISPOSITIVO = "DISPOSITIVO", _("Dispositivo")
-    SERVICIO = "SERVICIO", _("Servicio")
     MATERIAL = "MATERIAL", _("Material")
+    INSUMO = "INSUMO", _("Insumo")
     MANO_OBRA = "MANO_OBRA", _("Mano de obra")
+    SERVICIO = "SERVICIO", _("Servicio")
     LICENCIA = "LICENCIA", _("Licencia")
     VIATICO = "VIATICO", _("Viático")
     OTRO = "OTRO", _("Otro")
@@ -530,5 +531,50 @@ class UnidadMedidaChoices(models.TextChoices):
     LOTE = (
         "LOT",
         _("Lote"),
+    )
+
+# ======================================================
+# CATALOGO ITEMS
+# ======================================================
+
+class TipoItemCatalogoChoices(models.TextChoices):
+    """
+    Tipos de conceptos valorizados disponibles
+    dentro del catálogo general.
+    """
+
+    MATERIAL = (
+        "MATERIAL",
+        _("Material"),
+    )
+
+    INSUMO = (
+        "INSUMO",
+        _("Insumo"),
+    )
+
+    MANO_OBRA = (
+        "MANO_OBRA",
+        _("Mano de obra"),
+    )
+
+    SERVICIO = (
+        "SERVICIO",
+        _("Servicio"),
+    )
+
+    LICENCIA = (
+        "LICENCIA",
+        _("Licencia"),
+    )
+
+    VIATICO = (
+        "VIATICO",
+        _("Viático"),
+    )
+
+    OTRO = (
+        "OTRO",
+        _("Otro"),
     )
 

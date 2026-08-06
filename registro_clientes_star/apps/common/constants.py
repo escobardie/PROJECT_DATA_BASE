@@ -45,6 +45,9 @@ BUDGET_CODE_PREFIX = "PRE"
 BUDGET_ITEM_CODE_PREFIX = "IPRE"
 PROJECT_DETAIL_CODE_PREFIX = "PRD"
 
+CATALOG_CATEGORY_CODE_PREFIX = "CTC"
+CATALOG_ITEM_CODE_PREFIX = "ITC"
+
 # ==========================================================
 # FORMATO DE CÓDIGOS
 # ==========================================================

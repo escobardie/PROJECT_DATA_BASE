@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'apps.instalacion',
     #'apps.presupuesto',
     'apps.orden_trabajo',
+    'apps.catalogo',
     
 ]
 

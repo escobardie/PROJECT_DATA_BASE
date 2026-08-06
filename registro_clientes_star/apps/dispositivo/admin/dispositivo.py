@@ -38,7 +38,6 @@ class DispositivoAdmin(admin.ModelAdmin):
         "codigo",
         "nombre_comercial",
         "modelo__nombre",
-        "modelo__codigo_fabricante",
         "modelo__marca__nombre",
     )
 
