@@ -2,28 +2,25 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
-from django.db import models, transaction
+from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from apps.catalogo.models import ItemCatalogo
 
-from apps.common.models import CodeModel
-
-from apps.common.constants import (
-    PROJECT_DETAIL_CODE_PREFIX,
-    MAX_PRICE_DIGITS,
-    PRICE_DECIMAL_PLACES,
-)
-
 from apps.common.choices import (
+    TipoProyectoDetalleChoices,
     UnidadMedidaChoices,
 )
 
-from apps.dispositivo.models import Dispositivo
-
-from apps.common.choices import (
-    TipoProyectoDetalleChoices,
+from apps.common.constants import (
+    MAX_PRICE_DIGITS,
+    PRICE_DECIMAL_PLACES,
+    PROJECT_DETAIL_CODE_PREFIX,
 )
+
+from apps.common.models import CodeModel
+
+from apps.dispositivo.models import Dispositivo
 
 from .proyecto import Proyecto
 
@@ -41,6 +38,9 @@ class ProyectoDetalle(CodeModel):
     Cada detalle almacena una copia de la descripción,
     unidad y precio utilizados en el proyecto, para conservar
     su información histórica aunque el catálogo cambie.
+
+    La creación, actualización, eliminación y cálculo
+    económico se gestionan mediante apps.proyecto.services.
     """
 
     CODE_PREFIX = PROJECT_DETAIL_CODE_PREFIX
@@ -133,7 +133,9 @@ class ProyectoDetalle(CodeModel):
         decimal_places=2,
         default=Decimal("1.00"),
         validators=[
-            MinValueValidator(Decimal("0.01")),
+            MinValueValidator(
+                Decimal("0.01")
+            ),
         ],
         verbose_name=_("Cantidad"),
     )
@@ -154,7 +156,9 @@ class ProyectoDetalle(CodeModel):
         decimal_places=PRICE_DECIMAL_PLACES,
         default=Decimal("0.00"),
         validators=[
-            MinValueValidator(Decimal("0.00")),
+            MinValueValidator(
+                Decimal("0.00")
+            ),
         ],
         verbose_name=_("Precio unitario"),
     )
@@ -164,7 +168,9 @@ class ProyectoDetalle(CodeModel):
         decimal_places=PRICE_DECIMAL_PLACES,
         default=Decimal("0.00"),
         validators=[
-            MinValueValidator(Decimal("0.00")),
+            MinValueValidator(
+                Decimal("0.00")
+            ),
         ],
         verbose_name=_("Descuento"),
     )
@@ -174,7 +180,9 @@ class ProyectoDetalle(CodeModel):
         decimal_places=PRICE_DECIMAL_PLACES,
         default=Decimal("0.00"),
         validators=[
-            MinValueValidator(Decimal("0.00")),
+            MinValueValidator(
+                Decimal("0.00")
+            ),
         ],
         verbose_name=_("Impuestos"),
     )
@@ -252,26 +260,41 @@ class ProyectoDetalle(CodeModel):
     def clean(self):
         """
         Valida que el detalle tenga exactamente un origen
-        y que dicho origen coincida con el tipo seleccionado.
+        y que dicho origen sea coherente con su clasificación.
         """
 
         super().clean()
 
         errores = {}
 
-        tiene_dispositivo = self.dispositivo_id is not None
-        tiene_item_catalogo = self.item_catalogo_id is not None
+        tiene_dispositivo = (
+            self.dispositivo_id is not None
+        )
 
-        # Debe existir exactamente uno.
-        if not tiene_dispositivo and not tiene_item_catalogo:
+        tiene_item_catalogo = (
+            self.item_catalogo_id is not None
+        )
+
+        # ==================================================
+        # ORIGEN
+        # ==================================================
+
+        if (
+            not tiene_dispositivo
+            and not tiene_item_catalogo
+        ):
             mensaje = _(
-                "Debe seleccionar un dispositivo o un ítem de catálogo."
+                "Debe seleccionar un dispositivo "
+                "o un ítem de catálogo."
             )
 
             errores["dispositivo"] = mensaje
             errores["item_catalogo"] = mensaje
 
-        if tiene_dispositivo and tiene_item_catalogo:
+        elif (
+            tiene_dispositivo
+            and tiene_item_catalogo
+        ):
             mensaje = _(
                 "No puede seleccionar simultáneamente "
                 "un dispositivo y un ítem de catálogo."
@@ -280,128 +303,53 @@ class ProyectoDetalle(CodeModel):
             errores["dispositivo"] = mensaje
             errores["item_catalogo"] = mensaje
 
-        # Los dispositivos deben utilizar el tipo DISPOSITIVO.
-        if (
-            tiene_dispositivo
-            and self.tipo
-            != TipoProyectoDetalleChoices.DISPOSITIVO
-        ):
-            errores["tipo"] = _(
-                "Cuando se selecciona un dispositivo, "
-                "el tipo debe ser Dispositivo."
+        # ==================================================
+        # CLASIFICACIÓN
+        # ==================================================
+
+        elif tiene_dispositivo:
+            if (
+                self.tipo
+                != TipoProyectoDetalleChoices.DISPOSITIVO
+            ):
+                errores["__all__"] = _(
+                    "El tipo del detalle debe ser Dispositivo "
+                    "cuando se selecciona un dispositivo."
+                )
+
+        elif tiene_item_catalogo:
+            tipo_esperado = (
+                self.item_catalogo.tipo
             )
 
-        # Los ítems deben coincidir con su clasificación.
-        if tiene_item_catalogo:
-            tipo_esperado = self.item_catalogo.tipo
-
             if self.tipo != tipo_esperado:
-                errores["tipo"] = _(
-                    "El tipo del detalle debe coincidir con el tipo "
-                    "del ítem seleccionado: %(tipo)s."
+                errores["__all__"] = _(
+                    "El tipo del detalle debe coincidir con "
+                    "el tipo del ítem seleccionado: %(tipo)s."
                 ) % {
-                    "tipo": self.item_catalogo.get_tipo_display(),
+                    "tipo": (
+                        self.item_catalogo.get_tipo_display()
+                    ),
                 }
 
-        if self.descuento_importe > self.importe_bruto:
+        # ==================================================
+        # DESCUENTO
+        # ==================================================
+
+        if (
+            self.descuento_importe is not None
+            and self.descuento_importe
+            > self.importe_bruto
+        ):
             errores["descuento_importe"] = _(
                 "El descuento no puede ser mayor "
                 "que el importe bruto."
             )
 
         if errores:
-            raise ValidationError(errores)
-
-    # ======================================================
-    # MÉTODOS DE NEGOCIO
-    # ======================================================
-
-    def completar_desde_origen(self):
-        """
-        Completa valores iniciales desde el dispositivo
-        o desde el ítem de catálogo.
-
-        Los valores ya cargados manualmente no se reemplazan,
-        salvo el tipo, que debe reflejar el origen seleccionado.
-        """
-
-        if self.dispositivo_id:
-            self.tipo = TipoProyectoDetalleChoices.DISPOSITIVO
-
-            if not self.descripcion:
-                self.descripcion = (
-                    self.dispositivo.nombre_comercial
-                )
-
-            if self.precio_unitario == Decimal("0.00"):
-                self.precio_unitario = (
-                    self.dispositivo.precio_mercado
-                )
-
-            self.unidad = UnidadMedidaChoices.UNIDAD
-
-            return
-
-        if self.item_catalogo_id:
-            self.tipo = self.item_catalogo.tipo
-
-            if not self.descripcion:
-                self.descripcion = self.item_catalogo.nombre
-
-            if self.precio_unitario == Decimal("0.00"):
-                self.precio_unitario = (
-                    self.item_catalogo.precio_venta
-                )
-
-            self.unidad = self.item_catalogo.unidad
-
-    def calcular_importes(self):
-        """
-        Calcula los importes económicos del detalle.
-        """
-
-        self.subtotal = self.importe_bruto
-
-        self.total = (
-            self.subtotal
-            - self.descuento_importe
-            + self.impuestos_importe
-        )
-
-    # ======================================================
-    # SAVE
-    # ======================================================
-
-    def save(self, *args, **kwargs):
-        """
-        Guarda el detalle, completa los datos desde su origen,
-        calcula los importes y actualiza el proyecto.
-        """
-
-        self.completar_desde_origen()
-        self.calcular_importes()
-
-        with transaction.atomic():
-            super().save(*args, **kwargs)
-            self.proyecto.actualizar_totales()
-
-    # ======================================================
-    # DELETE
-    # ======================================================
-
-    def delete(self, *args, **kwargs):
-        """
-        Elimina el detalle y actualiza los totales
-        del proyecto relacionado.
-        """
-
-        proyecto = self.proyecto
-
-        with transaction.atomic():
-            resultado = super().delete(*args, **kwargs)
-            proyecto.actualizar_totales()
-
-        return resultado
+            raise ValidationError(
+                errores
+            )
 
     # ======================================================
     # REPRESENTACIÓN
@@ -420,34 +368,57 @@ class ProyectoDetalle(CodeModel):
     @property
     def importe_bruto(self):
         """
-        Devuelve el importe anterior a descuentos e impuestos.
+        Devuelve el importe anterior a descuentos
+        e impuestos.
         """
 
-        cantidad = self.cantidad or Decimal("0.00")
-        precio = self.precio_unitario or Decimal("0.00")
+        cantidad = (
+            self.cantidad
+            or Decimal("0.00")
+        )
+
+        precio = (
+            self.precio_unitario
+            or Decimal("0.00")
+        )
 
         return cantidad * precio
 
     @property
     def es_dispositivo(self):
+        """
+        Indica si el origen del detalle
+        es un dispositivo.
+        """
+
         return self.dispositivo_id is not None
 
     @property
     def es_item_catalogo(self):
+        """
+        Indica si el origen del detalle
+        es un ítem del catálogo general.
+        """
+
         return self.item_catalogo_id is not None
 
     @property
     def origen(self):
         """
-        Devuelve el dispositivo o ítem asociado.
+        Devuelve el dispositivo o ítem
+        asociado al detalle.
         """
 
-        return self.dispositivo or self.item_catalogo
+        return (
+            self.dispositivo
+            or self.item_catalogo
+        )
 
     @property
     def controla_stock(self):
         """
-        Indica si el detalle proviene de un ítem inventariable.
+        Indica si el detalle proviene
+        de un ítem inventariable.
         """
 
         return bool(

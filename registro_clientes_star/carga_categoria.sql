@@ -1,4 +1,4 @@
-USE cuenta_cliente_star6;
+USE cuenta_cliente_star7;
 SHOW TABLES;
 SELECT * FROM catalogo_categoriacatalogo;
 

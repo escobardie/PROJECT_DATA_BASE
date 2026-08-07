@@ -3,21 +3,21 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
 
-from apps.common.models import CodeModel
+from apps.common.choices import (
+    EstadoProyectoChoices,
+    MonedaChoices,
+)
 
 from apps.common.constants import (
-    PROJECT_CODE_PREFIX,
     MAX_NAME_LENGTH,
     MAX_PRICE_DIGITS,
     PRICE_DECIMAL_PLACES,
+    PROJECT_CODE_PREFIX,
 )
 
-from apps.common.choices import (
-    MonedaChoices,
-)
+from apps.common.models import CodeModel
 
 from apps.cuenta_cliente.models import Sucursal
 
@@ -44,12 +44,6 @@ class Proyecto(CodeModel):
 
     CODE_PREFIX = PROJECT_CODE_PREFIX
 
-    _UPDATE_TOTAL_FIELDS = (
-        "subtotal",
-        "descuento_total",
-        "impuestos",
-        "total",
-    )
 
     # ======================================================
     # RELACIONES
@@ -313,76 +307,6 @@ class Proyecto(CodeModel):
 
         if errores:
             raise ValidationError(errores)
-
-    # ======================================================
-    # MÉTODOS DE NEGOCIO
-    # ======================================================
-
-    def actualizar_totales(self, commit=True):
-        """
-        Recalcula los importes del proyecto a partir
-        de sus detalles.
-        """
-
-        resumen = self.detalles.aggregate(
-            subtotal=Sum("subtotal"),
-            descuento_total=Sum("descuento_importe"),
-            impuestos=Sum("impuestos_importe"),
-        )
-
-        self.subtotal = (
-            resumen["subtotal"]
-            or Decimal("0.00")
-        )
-
-        self.descuento_total = (
-            resumen["descuento_total"]
-            or Decimal("0.00")
-        )
-
-        self.impuestos = (
-            resumen["impuestos"]
-            or Decimal("0.00")
-        )
-
-        self.total = (
-            self.subtotal
-            - self.descuento_total
-            + self.impuestos
-        )
-
-        if commit:
-            self.save(
-                update_fields=self._UPDATE_TOTAL_FIELDS,
-            )
-
-    def cambiar_estado(self, estado, commit=True):
-        """
-        Cambia el estado actual del proyecto.
-        """
-
-        estados_validos = {
-            valor
-            for valor, _etiqueta in EstadoProyectoChoices.choices
-        }
-
-        if estado not in estados_validos:
-            raise ValidationError(
-                {
-                    "estado": _(
-                        "El estado indicado no es válido."
-                    )
-                }
-            )
-
-        self.estado = estado
-
-        if commit:
-            self.save(
-                update_fields=(
-                    "estado",
-                ),
-            )
 
     # ======================================================
     # REPRESENTACIÓN

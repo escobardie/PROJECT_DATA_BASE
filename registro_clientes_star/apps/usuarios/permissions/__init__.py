@@ -1,0 +1,38 @@
+from .rules import (
+    puede_ver_proyecto,
+    puede_editar_proyecto,
+    puede_eliminar_proyecto,
+    puede_ver_costos_del_proyecto,
+    puede_ver_orden_trabajo,
+    puede_editar_orden_trabajo,
+    puede_cerrar_ot,
+    puede_facturar_ot,
+    puede_cobrar_ot,
+    puede_crear_instalacion_desde_ot,
+    puede_ver_instalacion,
+    puede_editar_instalacion,
+    puede_finalizar_instalacion_concreta,
+    puede_ver_credenciales_instalacion,
+    puede_ver_cuenta_cliente,
+    puede_ver_sucursal,
+)
+
+
+__all__ = (
+    "puede_ver_proyecto",
+    "puede_editar_proyecto",
+    "puede_eliminar_proyecto",
+    "puede_ver_costos_del_proyecto",
+    "puede_ver_orden_trabajo",
+    "puede_editar_orden_trabajo",
+    "puede_cerrar_ot",
+    "puede_facturar_ot",
+    "puede_cobrar_ot",
+    "puede_crear_instalacion_desde_ot",
+    "puede_ver_instalacion",
+    "puede_editar_instalacion",
+    "puede_finalizar_instalacion_concreta",
+    "puede_ver_credenciales_instalacion",
+    "puede_ver_cuenta_cliente",
+    "puede_ver_sucursal",
+)

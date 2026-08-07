@@ -1,5 +1,5 @@
 CREATE DATABASE cuenta_cliente_star;
-USE cuenta_cliente_star6;
+USE cuenta_cliente_star7;
 SHOW TABLES;
 
 CREATE USER 'user1_star1'@'localhost' IDENTIFIED BY 'user1_star1-1';
@@ -15,6 +15,9 @@ GRANT ALL PRIVILEGES ON cuenta_cliente_star5.* TO 'user1_star1'@'localhost';
 
 CREATE DATABASE cuenta_cliente_star6;
 GRANT ALL PRIVILEGES ON cuenta_cliente_star6.* TO 'user1_star1'@'localhost';
+
+CREATE DATABASE cuenta_cliente_star7;
+GRANT ALL PRIVILEGES ON cuenta_cliente_star7.* TO 'user1_star1'@'localhost';
 
 SELECT * FROM telecom_presupuestotelecom;
 DELETE FROM telecom_presupuestotelecom;
@@ -40,3 +43,10 @@ SELECT
     tipo_dispositivo_id
 FROM dispositivo_modelodispositivo
 ORDER BY id;
+
+SELECT
+    id,
+    codigo,
+    nombre
+FROM catalogo_categoriacatalogo
+ORDER BY orden, nombre;
