@@ -13,7 +13,9 @@ from .totales import (
     calcular_importes_detalle,
     completar_detalle_desde_origen,
 )
-
+from .orden_trabajo import (
+    crear_orden_trabajo_desde_proyecto,
+)
 
 __all__ = (
     # Detalles
@@ -28,4 +30,7 @@ __all__ = (
     "actualizar_totales_proyecto",
     "calcular_importes_detalle",
     "completar_detalle_desde_origen",
+
+    # Orden de trabajo
+    "crear_orden_trabajo_desde_proyecto",
 )

@@ -1,4 +1,10 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.core.exceptions import ValidationError
+from django.http import (
+    HttpResponseNotAllowed,
+    HttpResponseRedirect,
+)
+from django.urls import path, reverse
 from django.db.models import Count
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
@@ -11,12 +17,14 @@ from apps.proyecto.models import (
 from apps.proyecto.services import (
     actualizar_detalle_proyecto,
     crear_detalle_proyecto,
+    crear_orden_trabajo_desde_proyecto,
     eliminar_detalle_proyecto,
 )
 
 from apps.usuarios.permissions import (
     puede_editar_proyecto,
     puede_eliminar_proyecto,
+    puede_generar_ot_desde_proyecto,
     puede_ver_costos_del_proyecto,
     puede_ver_proyecto,
 )
@@ -216,6 +224,13 @@ class ProyectoAdmin(admin.ModelAdmin):
     )
 
     # ======================================================
+    # TEMPLATE
+    # ======================================================
+
+    change_form_template = (
+        "admin/proyecto/proyecto/change_form.html"
+    )
+    # ======================================================
     # QUERYSET
     # ======================================================
 
@@ -413,6 +428,146 @@ class ProyectoAdmin(admin.ModelAdmin):
             obj,
         )
 
+    # ======================================================
+    # URLS PERSONALIZADAS
+    # ======================================================
+    def get_urls(self):
+        urls = super().get_urls()
+
+        custom_urls = [
+            path(
+                "<path:object_id>/generar-ot/",
+                self.admin_site.admin_view(
+                    self.generar_ot_view
+                ),
+                name="proyecto_proyecto_generar_ot",
+            ),
+        ]
+
+        return custom_urls + urls
+
+    def generar_ot_view(
+        self,
+        request,
+        object_id,
+    ):
+        """
+        Genera una OT a partir del proyecto aprobado
+        y redirige directamente al Admin de la nueva OT.
+        """
+
+        if request.method != "POST":
+            return HttpResponseNotAllowed(
+                ["POST"]
+            )
+
+        proyecto = self.get_object(
+            request,
+            object_id,
+        )
+
+        if proyecto is None:
+            return HttpResponseRedirect(
+                reverse(
+                    "admin:proyecto_proyecto_changelist",
+                    current_app=self.admin_site.name,
+                )
+            )
+
+        if not puede_generar_ot_desde_proyecto(
+            request.user,
+            proyecto,
+        ):
+            self.message_user(
+                request,
+                _(
+                    "El proyecto no cumple las condiciones "
+                    "para generar una orden de trabajo."
+                ),
+                level=messages.ERROR,
+            )
+
+            return HttpResponseRedirect(
+                reverse(
+                    "admin:proyecto_proyecto_change",
+                    args=(proyecto.pk,),
+                    current_app=self.admin_site.name,
+                )
+            )
+
+        try:
+            orden = crear_orden_trabajo_desde_proyecto(
+                proyecto=proyecto,
+            )
+
+        except ValidationError as exc:
+            self.message_user(
+                request,
+                " ".join(exc.messages),
+                level=messages.ERROR,
+            )
+
+            return HttpResponseRedirect(
+                reverse(
+                    "admin:proyecto_proyecto_change",
+                    args=(proyecto.pk,),
+                    current_app=self.admin_site.name,
+                )
+            )
+
+        self.message_user(
+            request,
+            _(
+                "Orden de trabajo %(codigo)s "
+                "generada correctamente."
+            )
+            % {
+                "codigo": orden.codigo,
+            },
+            level=messages.SUCCESS,
+        )
+
+        return HttpResponseRedirect(
+            reverse(
+                "admin:orden_trabajo_ordentrabajo_change",
+                args=(orden.pk,),
+                current_app=self.admin_site.name,
+            )
+        )
+    def changeform_view(
+        self,
+        request,
+        object_id=None,
+        form_url="",
+        extra_context=None,
+    ):
+        extra_context = (
+            extra_context
+            or {}
+        )
+
+        proyecto = None
+
+        if object_id:
+            proyecto = self.get_object(
+                request,
+                object_id,
+            )
+
+        if proyecto:
+            extra_context[
+                "puede_generar_ot_desde_proyecto"
+            ] = puede_generar_ot_desde_proyecto(
+                request.user,
+                proyecto,
+            )
+
+        return super().changeform_view(
+            request,
+            object_id,
+            form_url,
+            extra_context,
+        )
     # ======================================================
     # GUARDADO DE INLINES MEDIANTE SERVICES
     # ======================================================

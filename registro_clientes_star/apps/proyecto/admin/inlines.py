@@ -114,12 +114,22 @@ class ProyectoDetalleInline(admin.TabularInline):
     ):
         """
         Define los campos que no pueden editarse.
+
+        El superadministrador conserva acceso completo.
         """
 
         campos_visibles = self.get_fields(
             request,
             obj,
         )
+
+        # Superadmin tiene prioridad sobre cualquier otro rol.
+        if es_superadmin(request.user):
+            return tuple(
+                campo
+                for campo in self.CAMPOS_AUTOMATICOS
+                if campo in campos_visibles
+            )
 
         if (
             es_auditor(request.user)
@@ -198,11 +208,20 @@ class ProyectoDetalleInline(admin.TabularInline):
         request,
         obj=None,
     ):
-        if not super().has_add_permission(
-            request,
-            obj,
+        """
+        Permite agregar detalles según el rol
+        y el alcance sobre el proyecto.
+        """
+
+        if (
+            not request.user.is_authenticated
+            or not request.user.is_active
         ):
             return False
+
+        # Superadmin tiene acceso total.
+        if es_superadmin(request.user):
+            return True
 
         if (
             es_auditor(request.user)
@@ -225,11 +244,20 @@ class ProyectoDetalleInline(admin.TabularInline):
         request,
         obj=None,
     ):
-        if not super().has_change_permission(
-            request,
-            obj,
+        """
+        Permite modificar detalles según el rol
+        y el alcance sobre el proyecto.
+        """
+
+        if (
+            not request.user.is_authenticated
+            or not request.user.is_active
         ):
             return False
+
+        # Superadmin tiene acceso total.
+        if es_superadmin(request.user):
+            return True
 
         if (
             es_auditor(request.user)
@@ -238,8 +266,8 @@ class ProyectoDetalleInline(admin.TabularInline):
             return False
 
         if obj is None:
-            return request.user.has_perm(
-                "proyecto.change_proyectodetalle"
+            return puede_crear_proyectos(
+                request.user,
             )
 
         return puede_editar_proyecto(
@@ -252,11 +280,19 @@ class ProyectoDetalleInline(admin.TabularInline):
         request,
         obj=None,
     ):
-        if not super().has_delete_permission(
-            request,
-            obj,
+        """
+        Controla la eliminación de detalles.
+        """
+
+        if (
+            not request.user.is_authenticated
+            or not request.user.is_active
         ):
             return False
+
+        # Superadmin tiene prioridad.
+        if es_superadmin(request.user):
+            return True
 
         if (
             es_auditor(request.user)
@@ -269,10 +305,7 @@ class ProyectoDetalleInline(admin.TabularInline):
         )
 
         if obj is None:
-            return bool(
-                es_superadmin(request.user)
-                or tiene_permiso
-            )
+            return tiene_permiso
 
         return bool(
             tiene_permiso

@@ -1,0 +1,192 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+
+    {{ block.super }}
+
+    {% if original %}
+
+        {% if puede_registrar_recepcion_ot %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:orden_trabajo_ordentrabajo_registrar_recepcion' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+                    <button type="submit" class="button">
+                        {% trans "Registrar recepción" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+        {% if puede_programar_ot %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:orden_trabajo_ordentrabajo_programar' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+                    <button type="submit" class="button">
+                        {% trans "Programar OT" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+        {% if puede_registrar_envio_ot %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:orden_trabajo_ordentrabajo_registrar_envio' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+                    <button type="submit" class="button">
+                        {% trans "Registrar envío" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+        {% if puede_registrar_aceptacion_ot %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:orden_trabajo_ordentrabajo_aceptar' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+                    <button type="submit" class="button">
+                        {% trans "Registrar aceptación" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+        {% if puede_registrar_rechazo_ot %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:orden_trabajo_ordentrabajo_rechazar' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+                    <button type="submit" class="button">
+                        {% trans "Registrar rechazo" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+        {% if puede_iniciar_ot %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:orden_trabajo_ordentrabajo_iniciar' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+                    <button type="submit" class="button">
+                        {% trans "Iniciar OT" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+        {% if puede_pausar_ot %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:orden_trabajo_ordentrabajo_pausar' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+                    <button type="submit" class="button">
+                        {% trans "Pausar" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+        {% if puede_reanudar_ot %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:orden_trabajo_ordentrabajo_reanudar' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+                    <button type="submit" class="button">
+                        {% trans "Reanudar" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+        {% if puede_generar_instalacion_ot %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:orden_trabajo_ordentrabajo_generar_instalacion' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+                    <button type="submit" class="button">
+                        {% trans "Generar instalación" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+        {% if puede_finalizar_ot %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:orden_trabajo_ordentrabajo_finalizar' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+                    <button type="submit" class="button">
+                        {% trans "Finalizar OT" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+        {% if puede_facturar_ot %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:orden_trabajo_ordentrabajo_facturar' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+                    <button type="submit" class="button">
+                        {% trans "Registrar facturación" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+        {% if puede_cobrar_ot %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:orden_trabajo_ordentrabajo_cobrar' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+                    <button type="submit" class="button">
+                        {% trans "Registrar cobro" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+    {% endif %}
+
+{% endblock %}

@@ -5,20 +5,25 @@ de las órdenes de trabajo.
 Este módulo centraliza:
 
 - recepción de solicitudes;
-- cambio de estado operativo;
 - programación;
+- envío al cliente;
+- aceptación o rechazo del cliente;
 - inicio;
 - pausa;
 - reanudación;
 - finalización;
 - cancelación;
-- envío al cliente;
-- aceptación del cliente;
 - facturación;
 - cobro.
 
 Los cambios se realizan dentro de transacciones atómicas
 y registran el usuario responsable cuando corresponde.
+
+Las fechas pueden ser proporcionadas explícitamente.
+Si no se proporciona una fecha:
+
+1. se conserva la fecha previamente cargada;
+2. si tampoco existe, se utiliza timezone.now().
 """
 
 from datetime import datetime
@@ -29,13 +34,13 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.common.choices import (
+    EstadoAceptacionOTChoices,
+    EstadoInstalacionChoices,
     EstadoOrdenTrabajoChoices,
+    TipoOrdenTrabajoChoices,
 )
 
-from apps.orden_trabajo.models import (
-    OrdenTrabajo,
-)
-
+from apps.orden_trabajo.models import OrdenTrabajo
 from apps.usuarios.models import Usuario
 
 
@@ -87,7 +92,8 @@ def _validar_orden_guardada(
     orden_trabajo: OrdenTrabajo | None,
 ) -> None:
     """
-    Valida que se haya proporcionado una OT persistida.
+    Valida que se haya proporcionado
+    una orden de trabajo persistida.
     """
 
     if orden_trabajo is None:
@@ -122,14 +128,26 @@ def _validar_usuario(
         )
 
 
-def _obtener_fecha(
-    fecha: datetime | None,
+def _resolver_fecha(
+    *,
+    fecha_nueva: datetime | None,
+    fecha_existente: datetime | None,
 ) -> datetime:
     """
-    Devuelve la fecha proporcionada o la fecha/hora actual.
+    Resuelve la fecha que debe utilizarse.
+
+    Prioridad:
+
+    1. fecha proporcionada explícitamente;
+    2. fecha previamente registrada;
+    3. fecha/hora actual.
     """
 
-    return fecha or timezone.now()
+    return (
+        fecha_nueva
+        or fecha_existente
+        or timezone.now()
+    )
 
 
 def _bloquear_orden(
@@ -147,6 +165,13 @@ def _bloquear_orden(
     return (
         OrdenTrabajo.objects
         .select_for_update()
+        .select_related(
+            "proyecto",
+            "sucursal",
+            "servicio_contratado",
+            "presupuesto_telecom",
+            "instalacion",
+        )
         .get(
             pk=orden_trabajo.pk,
         )
@@ -218,29 +243,30 @@ def registrar_recepcion_solicitud(
     fecha: datetime | None = None,
 ) -> OrdenTrabajo:
     """
-    Registra la recepción de una solicitud del cliente.
+    Registra la recepción de una solicitud.
 
-    Si la OT se encuentra en BORRADOR, pasa
-    automáticamente a PENDIENTE.
+    Una OT en BORRADOR pasa automáticamente
+    a PENDIENTE.
     """
 
-    _validar_usuario(usuario)
+    _validar_usuario(
+        usuario
+    )
 
     orden = _bloquear_orden(
         orden_trabajo
     )
 
-    fecha_registro = _obtener_fecha(
-        fecha
-    )
-
     orden.fecha_recepcion_solicitud = (
-        fecha_registro
+        _resolver_fecha(
+            fecha_nueva=fecha,
+            fecha_existente=(
+                orden.fecha_recepcion_solicitud
+            ),
+        )
     )
 
-    orden.usuario_recepcion_solicitud = (
-        usuario
-    )
+    orden.usuario_recepcion_solicitud = usuario
 
     campos = [
         "fecha_recepcion_solicitud",
@@ -280,14 +306,26 @@ def registrar_recepcion_solicitud(
 def programar_orden_trabajo(
     *,
     orden_trabajo: OrdenTrabajo,
-    fecha_programada: datetime,
+    fecha_programada: datetime | None = None,
 ) -> OrdenTrabajo:
     """
     Programa la ejecución de una OT y establece
     su estado en PROGRAMADA.
+
+    Puede utilizar una fecha previamente cargada
+    en la orden.
     """
 
-    if fecha_programada is None:
+    orden = _bloquear_orden(
+        orden_trabajo
+    )
+
+    fecha = (
+        fecha_programada
+        or orden.fecha_programada
+    )
+
+    if fecha is None:
         raise ValidationError(
             {
                 "fecha_programada": _(
@@ -296,10 +334,6 @@ def programar_orden_trabajo(
             }
         )
 
-    orden = _bloquear_orden(
-        orden_trabajo
-    )
-
     _validar_transicion(
         estado_actual=orden.estado,
         nuevo_estado=(
@@ -307,9 +341,7 @@ def programar_orden_trabajo(
         ),
     )
 
-    orden.fecha_programada = (
-        fecha_programada
-    )
+    orden.fecha_programada = fecha
 
     orden.estado = (
         EstadoOrdenTrabajoChoices.PROGRAMADA
@@ -320,6 +352,235 @@ def programar_orden_trabajo(
         campos=(
             "fecha_programada",
             "estado",
+        ),
+    )
+
+
+# ======================================================
+# ENVÍO AL CLIENTE
+# ======================================================
+
+@transaction.atomic
+def registrar_envio_cliente(
+    *,
+    orden_trabajo: OrdenTrabajo,
+    usuario: Usuario,
+    fecha: datetime | None = None,
+) -> OrdenTrabajo:
+    """
+    Registra el envío al cliente de la propuesta
+    relacionada con la OT.
+
+    Se utiliza para órdenes provenientes de:
+
+    - Proyecto;
+    - PresupuestoTelecom.
+    """
+
+    _validar_usuario(
+        usuario
+    )
+
+    orden = _bloquear_orden(
+        orden_trabajo
+    )
+
+    if not orden.requiere_aceptacion_cliente:
+        raise ValidationError(
+            {
+                "fecha_envio_cliente": _(
+                    "Esta orden de trabajo no requiere "
+                    "un proceso de aprobación comercial."
+                )
+            }
+        )
+
+    if not orden.fecha_recepcion_solicitud:
+        raise ValidationError(
+            {
+                "fecha_envio_cliente": _(
+                    "Debe registrar primero la recepción "
+                    "de la solicitud."
+                )
+            }
+        )
+    if orden.fue_enviada_cliente:
+        raise ValidationError(
+            {
+                "fecha_envio_cliente": _(
+                    "La propuesta ya fue enviada al cliente."
+                )
+            }
+        )
+
+    if orden.estado not in {
+        EstadoOrdenTrabajoChoices.PENDIENTE,
+        EstadoOrdenTrabajoChoices.PROGRAMADA,
+    }:
+        raise ValidationError(
+            {
+                "estado": _(
+                    "La propuesta solo puede enviarse "
+                    "cuando la orden está Pendiente "
+                    "o Programada."
+                )
+            }
+        )
+
+    orden.fecha_envio_cliente = (
+        _resolver_fecha(
+            fecha_nueva=fecha,
+            fecha_existente=(
+                orden.fecha_envio_cliente
+            ),
+        )
+    )
+
+    orden.usuario_envio_cliente = usuario
+
+    return _validar_y_guardar(
+        orden,
+        campos=(
+            "fecha_envio_cliente",
+            "usuario_envio_cliente",
+        ),
+    )
+
+
+# ======================================================
+# ACEPTACIÓN DEL CLIENTE
+# ======================================================
+
+@transaction.atomic
+def registrar_aceptacion_cliente(
+    *,
+    orden_trabajo: OrdenTrabajo,
+    usuario: Usuario,
+    fecha: datetime | None = None,
+) -> OrdenTrabajo:
+    """
+    Registra la aceptación de la propuesta
+    por parte del cliente.
+    """
+
+    _validar_usuario(
+        usuario
+    )
+
+    orden = _bloquear_orden(
+        orden_trabajo
+    )
+
+    if not orden.requiere_aceptacion_cliente:
+        raise ValidationError(
+            {
+                "estado_aceptacion": _(
+                    "Esta orden de trabajo no requiere "
+                    "aceptación comercial."
+                )
+            }
+        )
+
+    if not orden.fecha_envio_cliente:
+        raise ValidationError(
+            {
+                "fecha_aceptacion": _(
+                    "Debe registrar el envío al cliente "
+                    "antes de registrar su aceptación."
+                )
+            }
+        )
+
+    orden.estado_aceptacion = (
+        EstadoAceptacionOTChoices.ACEPTADA
+    )
+
+    orden.fecha_aceptacion = (
+        _resolver_fecha(
+            fecha_nueva=fecha,
+            fecha_existente=(
+                orden.fecha_aceptacion
+            ),
+        )
+    )
+
+    orden.usuario_aceptacion = usuario
+
+    return _validar_y_guardar(
+        orden,
+        campos=(
+            "estado_aceptacion",
+            "fecha_aceptacion",
+            "usuario_aceptacion",
+        ),
+    )
+
+
+# ======================================================
+# RECHAZO DEL CLIENTE
+# ======================================================
+
+@transaction.atomic
+def registrar_rechazo_cliente(
+    *,
+    orden_trabajo: OrdenTrabajo,
+    usuario: Usuario,
+    fecha: datetime | None = None,
+) -> OrdenTrabajo:
+    """
+    Registra el rechazo de la propuesta
+    por parte del cliente.
+    """
+
+    _validar_usuario(
+        usuario
+    )
+
+    orden = _bloquear_orden(
+        orden_trabajo
+    )
+
+    if not orden.requiere_aceptacion_cliente:
+        raise ValidationError(
+            {
+                "estado_aceptacion": _(
+                    "Esta orden de trabajo no requiere "
+                    "aceptación comercial."
+                )
+            }
+        )
+
+    if not orden.fecha_envio_cliente:
+        raise ValidationError(
+            {
+                "fecha_aceptacion": _(
+                    "Debe registrar el envío al cliente "
+                    "antes de registrar su respuesta."
+                )
+            }
+        )
+
+    orden.estado_aceptacion = (
+        EstadoAceptacionOTChoices.RECHAZADA
+    )
+
+    orden.fecha_aceptacion = (
+        _resolver_fecha(
+            fecha_nueva=fecha,
+            fecha_existente=(
+                orden.fecha_aceptacion
+            ),
+        )
+    )
+
+    orden.usuario_aceptacion = usuario
+
+    return _validar_y_guardar(
+        orden,
+        campos=(
+            "estado_aceptacion",
+            "fecha_aceptacion",
+            "usuario_aceptacion",
         ),
     )
 
@@ -338,13 +599,31 @@ def iniciar_orden_trabajo(
     """
     Registra el inicio de ejecución y cambia
     el estado de la OT a EN_PROCESO.
+
+    Las OT provenientes de Proyecto o PresupuestoTelecom
+    requieren aceptación previa del cliente.
     """
 
-    _validar_usuario(usuario)
+    _validar_usuario(
+        usuario
+    )
 
     orden = _bloquear_orden(
         orden_trabajo
     )
+
+    if (
+        orden.requiere_aceptacion_cliente
+        and not orden.fue_aceptada
+    ):
+        raise ValidationError(
+            {
+                "estado_aceptacion": _(
+                    "El cliente debe aceptar la propuesta "
+                    "antes de iniciar la orden de trabajo."
+                )
+            }
+        )
 
     _validar_transicion(
         estado_actual=orden.estado,
@@ -354,7 +633,10 @@ def iniciar_orden_trabajo(
     )
 
     orden.fecha_inicio = (
-        _obtener_fecha(fecha)
+        _resolver_fecha(
+            fecha_nueva=fecha,
+            fecha_existente=orden.fecha_inicio,
+        )
     )
 
     orden.usuario_inicio = usuario
@@ -383,7 +665,7 @@ def pausar_orden_trabajo(
     orden_trabajo: OrdenTrabajo,
 ) -> OrdenTrabajo:
     """
-    Pausa una orden que se encuentra en ejecución.
+    Pausa una OT actualmente en ejecución.
     """
 
     orden = _bloquear_orden(
@@ -458,13 +740,53 @@ def finalizar_orden_trabajo(
 ) -> OrdenTrabajo:
     """
     Registra la finalización operativa de una OT.
+
+    Para órdenes de tipo INSTALACION:
+
+    - debe existir una instalación generada;
+    - la instalación debe estar FINALIZADA.
     """
 
-    _validar_usuario(usuario)
+    _validar_usuario(
+        usuario
+    )
 
     orden = _bloquear_orden(
         orden_trabajo
     )
+
+    # --------------------------------------------------
+    # VALIDACIÓN DE INSTALACIÓN
+    # --------------------------------------------------
+
+    if (
+        orden.tipo
+        == TipoOrdenTrabajoChoices.INSTALACION
+    ):
+        if not orden.tiene_instalacion:
+            raise ValidationError(
+                {
+                    "estado": _(
+                        "No puede finalizar una orden "
+                        "de tipo Instalación sin haber "
+                        "generado la instalación correspondiente."
+                    )
+                }
+            )
+
+        if (
+            orden.instalacion.estado
+            != EstadoInstalacionChoices.FINALIZADA
+        ):
+            raise ValidationError(
+                {
+                    "estado": _(
+                        "No puede finalizar la orden "
+                        "de trabajo hasta que la instalación "
+                        "asociada esté finalizada."
+                    )
+                }
+            )
 
     _validar_transicion(
         estado_actual=orden.estado,
@@ -474,7 +796,12 @@ def finalizar_orden_trabajo(
     )
 
     orden.fecha_finalizacion = (
-        _obtener_fecha(fecha)
+        _resolver_fecha(
+            fecha_nueva=fecha,
+            fecha_existente=(
+                orden.fecha_finalizacion
+            ),
+        )
     )
 
     orden.usuario_finalizacion = usuario
@@ -505,8 +832,8 @@ def cancelar_orden_trabajo(
     """
     Cancela una orden de trabajo.
 
-    Una OT finalizada o ya cancelada no puede pasar
-    nuevamente a CANCELADA mediante este servicio.
+    Una OT finalizada o ya cancelada no puede
+    pasar nuevamente a CANCELADA.
     """
 
     orden = _bloquear_orden(
@@ -533,104 +860,6 @@ def cancelar_orden_trabajo(
 
 
 # ======================================================
-# ENVÍO AL CLIENTE
-# ======================================================
-
-@transaction.atomic
-def registrar_envio_cliente(
-    *,
-    orden_trabajo: OrdenTrabajo,
-    usuario: Usuario,
-    fecha: datetime | None = None,
-) -> OrdenTrabajo:
-    """
-    Registra que una OT finalizada fue enviada
-    al cliente.
-    """
-
-    _validar_usuario(usuario)
-
-    orden = _bloquear_orden(
-        orden_trabajo
-    )
-
-    if (
-        orden.estado
-        != EstadoOrdenTrabajoChoices.FINALIZADA
-    ):
-        raise ValidationError(
-            {
-                "estado": _(
-                    "La orden debe estar finalizada "
-                    "antes de enviarla al cliente."
-                )
-            }
-        )
-
-    orden.fecha_envio_cliente = (
-        _obtener_fecha(fecha)
-    )
-
-    orden.usuario_envio_cliente = usuario
-
-    return _validar_y_guardar(
-        orden,
-        campos=(
-            "fecha_envio_cliente",
-            "usuario_envio_cliente",
-        ),
-    )
-
-
-# ======================================================
-# ACEPTACIÓN DEL CLIENTE
-# ======================================================
-
-@transaction.atomic
-def registrar_aceptacion_cliente(
-    *,
-    orden_trabajo: OrdenTrabajo,
-    usuario: Usuario,
-    fecha: datetime | None = None,
-) -> OrdenTrabajo:
-    """
-    Registra la aceptación de la OT por parte
-    del cliente.
-    """
-
-    _validar_usuario(usuario)
-
-    orden = _bloquear_orden(
-        orden_trabajo
-    )
-
-    if not orden.fecha_envio_cliente:
-        raise ValidationError(
-            {
-                "fecha_aceptacion": _(
-                    "La orden debe haber sido enviada "
-                    "al cliente antes de registrar "
-                    "su aceptación."
-                )
-            }
-        )
-
-    orden.fecha_aceptacion = (
-        _obtener_fecha(fecha)
-    )
-
-    orden.usuario_aceptacion = usuario
-
-    return _validar_y_guardar(
-        orden,
-        campos=(
-            "fecha_aceptacion",
-            "usuario_aceptacion",
-        ),
-    )
-
-
-# ======================================================
 # FACTURACIÓN
 # ======================================================
 
@@ -642,14 +871,16 @@ def registrar_facturacion_ot(
     fecha: datetime | None = None,
 ) -> OrdenTrabajo:
     """
-    Registra la facturación de una orden de trabajo.
+    Registra la facturación de una OT.
 
-    Este servicio registra únicamente la trazabilidad
-    de la OT. La creación de una Factura pertenece
-    al módulo de facturación.
+    Este servicio registra únicamente la trazabilidad.
+    La creación de la factura pertenece al módulo
+    de facturación.
     """
 
-    _validar_usuario(usuario)
+    _validar_usuario(
+        usuario
+    )
 
     orden = _bloquear_orden(
         orden_trabajo
@@ -668,18 +899,13 @@ def registrar_facturacion_ot(
             }
         )
 
-    if orden.fecha_facturacion:
-        raise ValidationError(
-            {
-                "fecha_facturacion": _(
-                    "La orden ya tiene una fecha "
-                    "de facturación registrada."
-                )
-            }
-        )
-
     orden.fecha_facturacion = (
-        _obtener_fecha(fecha)
+        _resolver_fecha(
+            fecha_nueva=fecha,
+            fecha_existente=(
+                orden.fecha_facturacion
+            ),
+        )
     )
 
     orden.usuario_facturacion = usuario
@@ -705,13 +931,15 @@ def registrar_cobro_ot(
     fecha: datetime | None = None,
 ) -> OrdenTrabajo:
     """
-    Registra el cobro de una orden previamente facturada.
+    Registra el cobro de una OT previamente facturada.
 
-    Este servicio registra la trazabilidad de la OT;
+    Este servicio registra la trazabilidad;
     no crea movimientos financieros.
     """
 
-    _validar_usuario(usuario)
+    _validar_usuario(
+        usuario
+    )
 
     orden = _bloquear_orden(
         orden_trabajo
@@ -727,17 +955,13 @@ def registrar_cobro_ot(
             }
         )
 
-    if orden.fecha_cobro:
-        raise ValidationError(
-            {
-                "fecha_cobro": _(
-                    "La orden ya tiene un cobro registrado."
-                )
-            }
-        )
-
     orden.fecha_cobro = (
-        _obtener_fecha(fecha)
+        _resolver_fecha(
+            fecha_nueva=fecha,
+            fecha_existente=(
+                orden.fecha_cobro
+            ),
+        )
     )
 
     orden.usuario_cobro = usuario
@@ -751,16 +975,21 @@ def registrar_cobro_ot(
     )
 
 
+# ======================================================
+# EXPORTACIONES
+# ======================================================
+
 __all__ = (
     "registrar_recepcion_solicitud",
     "programar_orden_trabajo",
+    "registrar_envio_cliente",
+    "registrar_aceptacion_cliente",
+    "registrar_rechazo_cliente",
     "iniciar_orden_trabajo",
     "pausar_orden_trabajo",
     "reanudar_orden_trabajo",
     "finalizar_orden_trabajo",
     "cancelar_orden_trabajo",
-    "registrar_envio_cliente",
-    "registrar_aceptacion_cliente",
     "registrar_facturacion_ot",
     "registrar_cobro_ot",
 )

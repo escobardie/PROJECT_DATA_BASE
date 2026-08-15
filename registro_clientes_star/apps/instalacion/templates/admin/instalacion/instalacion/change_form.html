@@ -1,0 +1,129 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+
+    {{ block.super }}
+
+    {% if original %}
+
+        {% if puede_programar_instalacion %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:instalacion_instalacion_programar' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% trans "Programar instalación" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+
+        {% if puede_iniciar_instalacion %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:instalacion_instalacion_iniciar' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% trans "Iniciar instalación" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+
+        {% if puede_finalizar_instalacion %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:instalacion_instalacion_finalizar' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% trans "Finalizar instalación" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+
+        {% if puede_cancelar_instalacion %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:instalacion_instalacion_cancelar' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% trans "Cancelar instalación" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+
+        {% if puede_registrar_conformidad %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:instalacion_instalacion_registrar_conformidad' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% trans "Registrar conformidad" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+        {% if puede_importar_dispositivos_proyecto %}
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:instalacion_instalacion_importar_dispositivos_proyecto' original.pk %}"
+                    style="display:inline;"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% trans "Importar dispositivos del proyecto" %}
+                    </button>
+                </form>
+            </li>
+        {% endif %}
+
+    {% endif %}
+
+{% endblock %}

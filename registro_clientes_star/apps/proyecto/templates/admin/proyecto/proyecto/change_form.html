@@ -1,0 +1,27 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+
+    {{ block.super }}
+
+    {% if original and puede_generar_ot_desde_proyecto %}
+        <li>
+            <form
+                method="post"
+                action="{% url 'admin:proyecto_proyecto_generar_ot' original.pk %}"
+                style="display:inline;"
+            >
+                {% csrf_token %}
+
+                <button
+                    type="submit"
+                    class="button"
+                >
+                    {% trans "Generar OT" %}
+                </button>
+            </form>
+        </li>
+    {% endif %}
+
+{% endblock %}

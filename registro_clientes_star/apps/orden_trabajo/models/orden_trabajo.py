@@ -1,19 +1,21 @@
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.core.exceptions import (
+    ObjectDoesNotExist,
+    ValidationError,
+)
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
-from apps.common.models import CodeModel
-
-from apps.common.constants import (
-    ORDER_CODE_PREFIX,
-    MAX_TITLE_LENGTH,
-)
-
 from apps.common.choices import (
-    TipoOrdenTrabajoChoices,
+    EstadoAceptacionOTChoices,
     EstadoOrdenTrabajoChoices,
     PrioridadOrdenTrabajoChoices,
+    TipoOrdenTrabajoChoices,
 )
+from apps.common.constants import (
+    MAX_TITLE_LENGTH,
+    ORDER_CODE_PREFIX,
+)
+from apps.common.models import CodeModel
 
 from apps.cuenta_cliente.models import Sucursal
 from apps.proyecto.models import Proyecto
@@ -26,10 +28,18 @@ class OrdenTrabajo(CodeModel):
     """
     Representa una orden de trabajo operativa.
 
-    Gestiona la planificación, ejecución y trazabilidad
-    de trabajos técnicos relacionados con una sucursal,
-    proyecto, servicio contratado, presupuesto Telecom
-    o instalación existente.
+    Gestiona la planificación, aprobación, ejecución
+    y trazabilidad de trabajos técnicos relacionados
+    con una sucursal, proyecto, servicio contratado,
+    presupuesto Telecom o instalación existente.
+
+    Las OT originadas desde Proyecto o PresupuestoTelecom
+    requieren envío y aceptación del cliente antes
+    de iniciar los trabajos.
+
+    Las OT relacionadas únicamente con un
+    ServicioContratado no requieren aceptación
+    comercial obligatoria.
 
     Una orden de trabajo puede generar una instalación,
     pero no almacena información económica.
@@ -75,8 +85,8 @@ class OrdenTrabajo(CodeModel):
         null=True,
         verbose_name=_("Servicio contratado"),
         help_text=_(
-            "Servicio contratado relacionado con la orden de trabajo, "
-            "si corresponde."
+            "Servicio contratado relacionado con la orden "
+            "de trabajo, si corresponde."
         ),
     )
 
@@ -88,8 +98,8 @@ class OrdenTrabajo(CodeModel):
         null=True,
         verbose_name=_("Presupuesto Telecom"),
         help_text=_(
-            "Presupuesto Telecom relacionado con la orden de trabajo, "
-            "si corresponde."
+            "Presupuesto Telecom relacionado con la orden "
+            "de trabajo, si corresponde."
         ),
     )
 
@@ -101,8 +111,8 @@ class OrdenTrabajo(CodeModel):
         null=True,
         verbose_name=_("Instalación relacionada"),
         help_text=_(
-            "Instalación existente sobre la cual se realizará "
-            "el trabajo."
+            "Instalación existente sobre la cual "
+            "se realizará el trabajo."
         ),
     )
 
@@ -123,7 +133,8 @@ class OrdenTrabajo(CodeModel):
         default="",
         verbose_name=_("Descripción"),
         help_text=_(
-            "Descripción detallada del trabajo que debe realizarse."
+            "Descripción detallada del trabajo "
+            "que debe realizarse."
         ),
     )
 
@@ -162,7 +173,9 @@ class OrdenTrabajo(CodeModel):
     fecha_recepcion_solicitud = models.DateTimeField(
         blank=True,
         null=True,
-        verbose_name=_("Fecha de recepción de la solicitud"),
+        verbose_name=_(
+            "Fecha de recepción de la solicitud"
+        ),
         help_text=_(
             "Fecha y hora en que la empresa recibió "
             "la solicitud del cliente."
@@ -177,7 +190,8 @@ class OrdenTrabajo(CodeModel):
         null=True,
         verbose_name=_("Recepcionado por"),
         help_text=_(
-            "Usuario que registró la recepción de la solicitud."
+            "Usuario que registró la recepción "
+            "de la solicitud."
         ),
     )
 
@@ -191,7 +205,8 @@ class OrdenTrabajo(CodeModel):
         related_name="ordenes_trabajo_responsable",
         verbose_name=_("Responsable"),
         help_text=_(
-            "Usuario responsable de coordinar la orden de trabajo."
+            "Usuario responsable de coordinar "
+            "la orden de trabajo."
         ),
     )
 
@@ -201,7 +216,8 @@ class OrdenTrabajo(CodeModel):
         db_index=True,
         verbose_name=_("Fecha programada"),
         help_text=_(
-            "Fecha y hora programadas para ejecutar la orden."
+            "Fecha y hora programadas para ejecutar "
+            "la orden."
         ),
     )
 
@@ -210,7 +226,8 @@ class OrdenTrabajo(CodeModel):
         null=True,
         verbose_name=_("Fecha de inicio"),
         help_text=_(
-            "Fecha y hora en que comenzó la ejecución de la orden."
+            "Fecha y hora en que comenzó "
+            "la ejecución de la orden."
         ),
     )
 
@@ -222,7 +239,8 @@ class OrdenTrabajo(CodeModel):
         null=True,
         verbose_name=_("Iniciado por"),
         help_text=_(
-            "Usuario que registró el inicio de la orden."
+            "Usuario que registró el inicio "
+            "de la orden."
         ),
     )
 
@@ -231,7 +249,8 @@ class OrdenTrabajo(CodeModel):
         null=True,
         verbose_name=_("Fecha de finalización"),
         help_text=_(
-            "Fecha y hora en que finalizó la ejecución de la orden."
+            "Fecha y hora en que finalizó "
+            "la ejecución de la orden."
         ),
     )
 
@@ -243,12 +262,13 @@ class OrdenTrabajo(CodeModel):
         null=True,
         verbose_name=_("Finalizado por"),
         help_text=_(
-            "Usuario que registró la finalización de la orden."
+            "Usuario que registró la finalización "
+            "de la orden."
         ),
     )
 
     # ======================================================
-    # TRAZABILIDAD
+    # ENVÍO AL CLIENTE
     # ======================================================
 
     fecha_envio_cliente = models.DateTimeField(
@@ -256,7 +276,8 @@ class OrdenTrabajo(CodeModel):
         null=True,
         verbose_name=_("Fecha de envío al cliente"),
         help_text=_(
-            "Fecha y hora en que la orden fue enviada al cliente."
+            "Fecha y hora en que se envió al cliente "
+            "la propuesta asociada a la orden."
         ),
     )
 
@@ -268,16 +289,34 @@ class OrdenTrabajo(CodeModel):
         null=True,
         verbose_name=_("Enviado por"),
         help_text=_(
-            "Usuario que registró el envío de la orden al cliente."
+            "Usuario que registró el envío "
+            "al cliente."
+        ),
+    )
+
+    # ======================================================
+    # RESPUESTA DEL CLIENTE
+    # ======================================================
+
+    estado_aceptacion = models.CharField(
+        max_length=20,
+        choices=EstadoAceptacionOTChoices.choices,
+        default=EstadoAceptacionOTChoices.PENDIENTE,
+        db_index=True,
+        verbose_name=_("Respuesta del cliente"),
+        help_text=_(
+            "Indica si el cliente todavía no respondió, "
+            "aceptó o rechazó la propuesta."
         ),
     )
 
     fecha_aceptacion = models.DateTimeField(
         blank=True,
         null=True,
-        verbose_name=_("Fecha de aceptación"),
+        verbose_name=_("Fecha de respuesta del cliente"),
         help_text=_(
-            "Fecha y hora en que el cliente aceptó la orden."
+            "Fecha y hora en que el cliente respondió "
+            "la propuesta."
         ),
     )
 
@@ -287,11 +326,16 @@ class OrdenTrabajo(CodeModel):
         related_name="ordenes_trabajo_aceptadas",
         blank=True,
         null=True,
-        verbose_name=_("Aceptación registrada por"),
+        verbose_name=_("Respuesta registrada por"),
         help_text=_(
-            "Usuario que registró la aceptación del cliente."
+            "Usuario que registró la respuesta "
+            "del cliente."
         ),
     )
+
+    # ======================================================
+    # FACTURACIÓN
+    # ======================================================
 
     fecha_facturacion = models.DateTimeField(
         blank=True,
@@ -310,16 +354,22 @@ class OrdenTrabajo(CodeModel):
         null=True,
         verbose_name=_("Facturado por"),
         help_text=_(
-            "Usuario que registró la facturación de la orden."
+            "Usuario que registró la facturación "
+            "de la orden."
         ),
     )
+
+    # ======================================================
+    # COBRO
+    # ======================================================
 
     fecha_cobro = models.DateTimeField(
         blank=True,
         null=True,
         verbose_name=_("Fecha de cobro"),
         help_text=_(
-            "Fecha y hora en que se registró el cobro de la orden."
+            "Fecha y hora en que se registró "
+            "el cobro de la orden."
         ),
     )
 
@@ -331,7 +381,8 @@ class OrdenTrabajo(CodeModel):
         null=True,
         verbose_name=_("Cobrado por"),
         help_text=_(
-            "Usuario que registró el cobro de la orden."
+            "Usuario que registró el cobro "
+            "de la orden."
         ),
     )
 
@@ -344,7 +395,8 @@ class OrdenTrabajo(CodeModel):
         default="",
         verbose_name=_("Observaciones"),
         help_text=_(
-            "Observaciones generales sobre la orden de trabajo."
+            "Observaciones generales sobre "
+            "la orden de trabajo."
         ),
     )
 
@@ -399,7 +451,7 @@ class OrdenTrabajo(CodeModel):
         errores = {}
 
         # ==================================================
-        # ORIGEN DE LA ORDEN
+        # ORIGEN
         # ==================================================
 
         tiene_origen = any(
@@ -422,13 +474,94 @@ class OrdenTrabajo(CodeModel):
             errores["presupuesto_telecom"] = mensaje
 
         # ==================================================
-        # RECEPCIÓN E INICIO
+        # TIPO DE FLUJO COMERCIAL
+        # ==================================================
+
+        requiere_aceptacion_cliente = bool(
+            self.proyecto_id
+            or self.presupuesto_telecom_id
+        )
+
+        # ==================================================
+        # ENVÍO AL CLIENTE
+        # ==================================================
+
+        if (
+            self.fecha_envio_cliente
+            and self.fecha_recepcion_solicitud
+            and self.fecha_envio_cliente
+            < self.fecha_recepcion_solicitud
+        ):
+            errores["fecha_envio_cliente"] = _(
+                "La fecha de envío al cliente no puede ser "
+                "anterior a la recepción de la solicitud."
+            )
+
+        # ==================================================
+        # RESPUESTA DEL CLIENTE
+        # ==================================================
+
+        if requiere_aceptacion_cliente:
+            if (
+                self.estado_aceptacion
+                != EstadoAceptacionOTChoices.PENDIENTE
+                and not self.fecha_envio_cliente
+            ):
+                errores["estado_aceptacion"] = _(
+                    "Debe registrar el envío al cliente "
+                    "antes de registrar su respuesta."
+                )
+
+            if (
+                self.fecha_aceptacion
+                and not self.fecha_envio_cliente
+            ):
+                errores["fecha_aceptacion"] = _(
+                    "Debe registrar el envío al cliente "
+                    "antes de registrar la respuesta."
+                )
+
+            if (
+                self.fecha_envio_cliente
+                and self.fecha_aceptacion
+                and self.fecha_aceptacion
+                < self.fecha_envio_cliente
+            ):
+                errores["fecha_aceptacion"] = _(
+                    "La fecha de respuesta del cliente "
+                    "no puede ser anterior a la fecha "
+                    "de envío."
+                )
+
+            if (
+                self.estado_aceptacion
+                != EstadoAceptacionOTChoices.PENDIENTE
+                and not self.fecha_aceptacion
+            ):
+                errores["fecha_aceptacion"] = _(
+                    "Debe indicar la fecha en que "
+                    "el cliente respondió la propuesta."
+                )
+
+            if (
+                self.estado_aceptacion
+                == EstadoAceptacionOTChoices.PENDIENTE
+                and self.fecha_aceptacion
+            ):
+                errores["estado_aceptacion"] = _(
+                    "Debe indicar si el cliente aceptó "
+                    "o rechazó la propuesta."
+                )
+
+        # ==================================================
+        # INICIO
         # ==================================================
 
         if (
             self.fecha_inicio
             and self.fecha_recepcion_solicitud
-            and self.fecha_inicio < self.fecha_recepcion_solicitud
+            and self.fecha_inicio
+            < self.fecha_recepcion_solicitud
         ):
             errores["fecha_inicio"] = _(
                 "La fecha de inicio no puede ser anterior "
@@ -438,11 +571,36 @@ class OrdenTrabajo(CodeModel):
         if (
             self.fecha_inicio
             and self.fecha_programada
-            and self.fecha_inicio < self.fecha_programada
+            and self.fecha_inicio
+            < self.fecha_programada
         ):
             errores["fecha_inicio"] = _(
                 "La fecha de inicio no puede ser anterior "
                 "a la fecha programada."
+            )
+
+        if (
+            self.fecha_inicio
+            and requiere_aceptacion_cliente
+            and self.estado_aceptacion
+            != EstadoAceptacionOTChoices.ACEPTADA
+        ):
+            errores["fecha_inicio"] = _(
+                "No puede iniciar la orden de trabajo "
+                "hasta que el cliente haya aceptado "
+                "la propuesta."
+            )
+
+        if (
+            self.fecha_inicio
+            and requiere_aceptacion_cliente
+            and self.fecha_aceptacion
+            and self.fecha_inicio
+            < self.fecha_aceptacion
+        ):
+            errores["fecha_inicio"] = _(
+                "La fecha de inicio no puede ser anterior "
+                "a la aceptación del cliente."
             )
 
         # ==================================================
@@ -461,57 +619,12 @@ class OrdenTrabajo(CodeModel):
         if (
             self.fecha_inicio
             and self.fecha_finalizacion
-            and self.fecha_finalizacion < self.fecha_inicio
+            and self.fecha_finalizacion
+            < self.fecha_inicio
         ):
             errores["fecha_finalizacion"] = _(
                 "La fecha de finalización no puede ser anterior "
                 "a la fecha de inicio."
-            )
-
-        # ==================================================
-        # ENVÍO AL CLIENTE
-        # ==================================================
-
-        if (
-            self.fecha_envio_cliente
-            and not self.fecha_finalizacion
-        ):
-            errores["fecha_envio_cliente"] = _(
-                "Debe finalizar la orden antes "
-                "de enviarla al cliente."
-            )
-
-        if (
-            self.fecha_finalizacion
-            and self.fecha_envio_cliente
-            and self.fecha_envio_cliente < self.fecha_finalizacion
-        ):
-            errores["fecha_envio_cliente"] = _(
-                "La fecha de envío al cliente no puede ser anterior "
-                "a la finalización de la orden."
-            )
-
-        # ==================================================
-        # ACEPTACIÓN
-        # ==================================================
-
-        if (
-            self.fecha_aceptacion
-            and not self.fecha_envio_cliente
-        ):
-            errores["fecha_aceptacion"] = _(
-                "Debe registrar el envío al cliente antes "
-                "de registrar su aceptación."
-            )
-
-        if (
-            self.fecha_envio_cliente
-            and self.fecha_aceptacion
-            and self.fecha_aceptacion < self.fecha_envio_cliente
-        ):
-            errores["fecha_aceptacion"] = _(
-                "La fecha de aceptación no puede ser anterior "
-                "a la fecha de envío al cliente."
             )
 
         # ==================================================
@@ -530,7 +643,8 @@ class OrdenTrabajo(CodeModel):
         if (
             self.fecha_finalizacion
             and self.fecha_facturacion
-            and self.fecha_facturacion < self.fecha_finalizacion
+            and self.fecha_facturacion
+            < self.fecha_finalizacion
         ):
             errores["fecha_facturacion"] = _(
                 "La fecha de facturación no puede ser anterior "
@@ -553,7 +667,8 @@ class OrdenTrabajo(CodeModel):
         if (
             self.fecha_facturacion
             and self.fecha_cobro
-            and self.fecha_cobro < self.fecha_facturacion
+            and self.fecha_cobro
+            < self.fecha_facturacion
         ):
             errores["fecha_cobro"] = _(
                 "La fecha de cobro no puede ser anterior "
@@ -561,7 +676,9 @@ class OrdenTrabajo(CodeModel):
             )
 
         if errores:
-            raise ValidationError(errores)
+            raise ValidationError(
+                errores
+            )
 
     # ======================================================
     # REPRESENTACIÓN
@@ -574,20 +691,18 @@ class OrdenTrabajo(CodeModel):
         )
 
     # ======================================================
-    # PROPIEDADES
+    # PROPIEDADES DE INSTALACIÓN
     # ======================================================
 
     @property
     def tiene_instalacion(self):
         """
-        Indica si la orden de trabajo generó una instalación.
-
-        La instalación se obtiene mediante la relación inversa
-        del OneToOneField definido en Instalacion.
+        Indica si la orden generó una instalación.
         """
 
         try:
             self.instalacion
+
         except ObjectDoesNotExist:
             return False
 
@@ -596,18 +711,21 @@ class OrdenTrabajo(CodeModel):
     @property
     def tiene_instalacion_relacionada(self):
         """
-        Indica si la orden se ejecuta sobre una instalación
-        existente.
+        Indica si la OT se ejecuta sobre
+        una instalación existente.
         """
 
-        return self.instalacion_relacionada_id is not None
+        return (
+            self.instalacion_relacionada_id
+            is not None
+        )
+
+    # ======================================================
+    # PROPIEDADES DE ESTADO
+    # ======================================================
 
     @property
     def esta_finalizada(self):
-        """
-        Indica si la orden está finalizada.
-        """
-
         return (
             self.estado
             == EstadoOrdenTrabajoChoices.FINALIZADA
@@ -615,69 +733,99 @@ class OrdenTrabajo(CodeModel):
 
     @property
     def esta_facturada(self):
-        """
-        Indica si la orden fue facturada.
-        """
-
-        return self.fecha_facturacion is not None
+        return (
+            self.fecha_facturacion is not None
+        )
 
     @property
     def esta_cobrada(self):
-        """
-        Indica si la orden fue cobrada.
-        """
-
-        return self.fecha_cobro is not None
+        return (
+            self.fecha_cobro is not None
+        )
 
     @property
     def fue_enviada_cliente(self):
-        """
-        Indica si la orden fue enviada al cliente.
-        """
-
-        return self.fecha_envio_cliente is not None
+        return (
+            self.fecha_envio_cliente is not None
+        )
 
     @property
     def fue_aceptada(self):
         """
-        Indica si la aceptación del cliente fue registrada.
+        Indica si el cliente aceptó la propuesta.
         """
 
-        return self.fecha_aceptacion is not None
+        return (
+            self.estado_aceptacion
+            == EstadoAceptacionOTChoices.ACEPTADA
+        )
+
+    @property
+    def fue_rechazada(self):
+        """
+        Indica si el cliente rechazó la propuesta.
+        """
+
+        return (
+            self.estado_aceptacion
+            == EstadoAceptacionOTChoices.RECHAZADA
+        )
+
+    @property
+    def respuesta_cliente_pendiente(self):
+        """
+        Indica si todavía no existe respuesta
+        del cliente.
+        """
+
+        return (
+            self.estado_aceptacion
+            == EstadoAceptacionOTChoices.PENDIENTE
+        )
+
+    # ======================================================
+    # PROPIEDADES DE ORIGEN
+    # ======================================================
 
     @property
     def tiene_proyecto(self):
-        """
-        Indica si la orden proviene de un proyecto.
-        """
-
-        return self.proyecto_id is not None
-
+        return (
+            self.proyecto_id is not None
+        )
 
     @property
     def tiene_servicio_contratado(self):
-        """
-        Indica si la orden está relacionada
-        con un servicio contratado.
-        """
-
-        return self.servicio_contratado_id is not None
-
+        return (
+            self.servicio_contratado_id is not None
+        )
 
     @property
     def tiene_presupuesto_telecom(self):
+        return (
+            self.presupuesto_telecom_id is not None
+        )
+
+    @property
+    def requiere_aceptacion_cliente(self):
         """
-        Indica si la orden proviene
-        de un presupuesto Telecom.
+        Indica si la OT requiere aprobación comercial
+        del cliente antes de iniciar.
+
+        Proyecto y PresupuestoTelecom requieren
+        aceptación.
+
+        ServicioContratado por sí solo no la requiere.
         """
 
-        return self.presupuesto_telecom_id is not None
-
+        return bool(
+            self.proyecto_id
+            or self.presupuesto_telecom_id
+        )
 
     @property
     def origen_principal(self):
         """
-        Devuelve el origen principal de la orden.
+        Devuelve el origen principal de la OT.
         """
 
         if self.proyecto_id:

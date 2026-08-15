@@ -16,6 +16,13 @@ from apps.usuarios.services.permisos import (
     puede_ver_proyectos,
 )
 
+from apps.common.choices import (
+    EstadoAceptacionOTChoices,
+    EstadoInstalacionChoices,
+    EstadoOrdenTrabajoChoices,
+    TipoOrdenTrabajoChoices,
+)
+
 from apps.usuarios.services.querysets import (
     filtrar_instalaciones,
     filtrar_ordenes_trabajo,
@@ -335,20 +342,41 @@ def puede_crear_instalacion_desde_ot(
     orden_trabajo,
 ) -> bool:
     """
-    Indica si puede crearse una instalación
-    como resultado de una OT.
+    Indica si puede generarse una instalación
+    desde una OT.
 
     Reglas:
 
     - el usuario debe poder editar la OT;
-    - la OT no debe tener ya una instalación;
-    - la OT debe tener un origen válido;
-    - la OT no debe encontrarse finalizada.
+    - la OT debe ser de tipo INSTALACION;
+    - debe estar EN_PROCESO;
+    - debe poseer un origen válido;
+    - si requiere aprobación comercial,
+      debe estar ACEPTADA;
+    - no debe tener una instalación generada.
     """
 
     if not puede_editar_orden_trabajo(
         usuario,
         orden_trabajo,
+    ):
+        return False
+
+    if (
+        orden_trabajo.tipo
+        != TipoOrdenTrabajoChoices.INSTALACION
+    ):
+        return False
+
+    if (
+        orden_trabajo.estado
+        != EstadoOrdenTrabajoChoices.EN_PROCESO
+    ):
+        return False
+
+    if (
+        orden_trabajo.requiere_aceptacion_cliente
+        and not orden_trabajo.fue_aceptada
     ):
         return False
 
@@ -361,10 +389,7 @@ def puede_crear_instalacion_desde_ot(
     return bool(
         tiene_origen
         and not orden_trabajo.tiene_instalacion
-        and not orden_trabajo.esta_finalizada
     )
-
-
 # ======================================================
 # INSTALACIONES
 # ======================================================
@@ -457,6 +482,91 @@ def puede_finalizar_instalacion_concreta(
         and instalacion.fecha_inicio
     )
 
+def puede_programar_instalacion_concreta(
+    usuario: AbstractBaseUser | None,
+    instalacion,
+) -> bool:
+    """
+    Indica si una instalación puede pasar
+    de PENDIENTE a PROGRAMADA.
+    """
+
+    if not puede_editar_instalacion(
+        usuario,
+        instalacion,
+    ):
+        return False
+
+    return (
+        instalacion.estado
+        == EstadoInstalacionChoices.PENDIENTE
+    )
+
+
+def puede_iniciar_instalacion_concreta(
+    usuario: AbstractBaseUser | None,
+    instalacion,
+) -> bool:
+    """
+    Indica si una instalación programada
+    puede comenzar su ejecución.
+    """
+
+    if not puede_editar_instalacion(
+        usuario,
+        instalacion,
+    ):
+        return False
+
+    return (
+        instalacion.estado
+        == EstadoInstalacionChoices.PROGRAMADA
+    )
+
+
+def puede_cancelar_instalacion_concreta(
+    usuario: AbstractBaseUser | None,
+    instalacion,
+) -> bool:
+    """
+    Indica si una instalación puede cancelarse.
+    """
+
+    if not puede_editar_instalacion(
+        usuario,
+        instalacion,
+    ):
+        return False
+
+    return instalacion.estado in {
+        EstadoInstalacionChoices.PENDIENTE,
+        EstadoInstalacionChoices.PROGRAMADA,
+        EstadoInstalacionChoices.EN_PROCESO,
+    }
+
+
+def puede_registrar_conformidad_instalacion(
+    usuario: AbstractBaseUser | None,
+    instalacion,
+) -> bool:
+    """
+    Indica si puede registrarse la conformidad
+    de una instalación.
+
+    La instalación debe estar finalizada
+    y todavía no debe poseer conformidad.
+    """
+
+    if not puede_editar_instalacion(
+        usuario,
+        instalacion,
+    ):
+        return False
+
+    return bool(
+        instalacion.finalizada
+        and not instalacion.fecha_conformidad
+    )
 
 def puede_ver_credenciales_instalacion(
     usuario: AbstractBaseUser | None,
@@ -552,3 +662,281 @@ def puede_ver_sucursal(
         not sucursal_usuario_id
         or sucursal_usuario_id == sucursal.pk
     )
+
+# ======================================================
+# TRANSICIONES DE ÓRDENES DE TRABAJO
+# ======================================================
+
+def puede_registrar_recepcion_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Indica si puede registrarse la recepción
+    de una OT concreta.
+    """
+
+    if not puede_editar_orden_trabajo(
+        usuario,
+        orden_trabajo,
+    ):
+        return False
+
+    return (
+        orden_trabajo.estado
+        == EstadoOrdenTrabajoChoices.BORRADOR
+    )
+
+
+def puede_programar_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Indica si una OT puede programarse.
+    """
+
+    if not puede_editar_orden_trabajo(
+        usuario,
+        orden_trabajo,
+    ):
+        return False
+
+    return bool(
+        orden_trabajo.fecha_programada
+        and orden_trabajo.estado
+        in {
+            EstadoOrdenTrabajoChoices.BORRADOR,
+            EstadoOrdenTrabajoChoices.PENDIENTE,
+        }
+    )
+
+
+def puede_registrar_envio_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Indica si puede registrarse el envío
+    comercial al cliente.
+
+    Reglas:
+
+    - el usuario debe poder editar la OT;
+    - la OT debe requerir aprobación comercial;
+    - debe existir recepción de la solicitud;
+    - la OT debe estar PENDIENTE o PROGRAMADA;
+    - todavía no debe haberse registrado el envío.
+    """
+
+    if not puede_editar_orden_trabajo(
+        usuario,
+        orden_trabajo,
+    ):
+        return False
+
+    if not orden_trabajo.requiere_aceptacion_cliente:
+        return False
+
+    if not orden_trabajo.fecha_recepcion_solicitud:
+        return False
+
+    if orden_trabajo.fue_enviada_cliente:
+        return False
+
+    return orden_trabajo.estado in {
+        EstadoOrdenTrabajoChoices.PENDIENTE,
+        EstadoOrdenTrabajoChoices.PROGRAMADA,
+    }
+
+def puede_registrar_respuesta_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Indica si puede registrarse la respuesta
+    del cliente, ya sea aceptación o rechazo.
+    """
+
+    if not puede_editar_orden_trabajo(
+        usuario,
+        orden_trabajo,
+    ):
+        return False
+
+    if not orden_trabajo.requiere_aceptacion_cliente:
+        return False
+
+    if not orden_trabajo.fecha_envio_cliente:
+        return False
+
+    return (
+        orden_trabajo.estado_aceptacion
+        == EstadoAceptacionOTChoices.PENDIENTE
+    )
+
+
+def puede_registrar_aceptacion_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Alias semántico para la aceptación del cliente.
+    """
+
+    return puede_registrar_respuesta_ot(
+        usuario,
+        orden_trabajo,
+    )
+
+
+def puede_registrar_rechazo_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Alias semántico para el rechazo del cliente.
+    """
+
+    return puede_registrar_respuesta_ot(
+        usuario,
+        orden_trabajo,
+    )
+
+
+def puede_iniciar_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Indica si una OT puede iniciarse.
+
+    Proyecto y PresupuestoTelecom requieren
+    aceptación previa del cliente.
+
+    Una OT asociada únicamente a ServicioContratado
+    no requiere aprobación comercial.
+    """
+
+    if not puede_editar_orden_trabajo(
+        usuario,
+        orden_trabajo,
+    ):
+        return False
+
+    if orden_trabajo.estado not in {
+        EstadoOrdenTrabajoChoices.PENDIENTE,
+        EstadoOrdenTrabajoChoices.PROGRAMADA,
+    }:
+        return False
+
+    if (
+        orden_trabajo.requiere_aceptacion_cliente
+        and not orden_trabajo.fue_aceptada
+    ):
+        return False
+
+    return True
+
+
+def puede_pausar_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Indica si una OT puede pausarse.
+    """
+
+    if not puede_editar_orden_trabajo(
+        usuario,
+        orden_trabajo,
+    ):
+        return False
+
+    return (
+        orden_trabajo.estado
+        == EstadoOrdenTrabajoChoices.EN_PROCESO
+    )
+
+
+def puede_reanudar_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Indica si una OT pausada puede reanudarse.
+    """
+
+    if not puede_editar_orden_trabajo(
+        usuario,
+        orden_trabajo,
+    ):
+        return False
+
+    return (
+        orden_trabajo.estado
+        == EstadoOrdenTrabajoChoices.PAUSADA
+    )
+
+
+def puede_finalizar_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Indica si una OT puede finalizarse.
+
+    Para una OT de tipo INSTALACION:
+
+    - debe existir la instalación;
+    - la instalación debe estar FINALIZADA.
+    """
+
+    if not puede_cerrar_ot(
+        usuario,
+        orden_trabajo,
+    ):
+        return False
+
+    if (
+        orden_trabajo.estado
+        != EstadoOrdenTrabajoChoices.EN_PROCESO
+    ):
+        return False
+
+    if (
+        orden_trabajo.tipo
+        == TipoOrdenTrabajoChoices.INSTALACION
+    ):
+        if not orden_trabajo.tiene_instalacion:
+            return False
+
+        if (
+            orden_trabajo.instalacion.estado
+            != EstadoInstalacionChoices.FINALIZADA
+        ):
+            return False
+
+    return True
+
+def puede_generar_ot_desde_proyecto(
+    usuario: AbstractBaseUser | None,
+    proyecto,
+) -> bool:
+    """
+    Indica si puede generarse una nueva OT
+    desde un proyecto.
+
+    El proyecto debe:
+    - estar dentro del alcance del usuario;
+    - poder editarse;
+    - encontrarse APROBADO.
+    """
+
+    if not puede_editar_proyecto(
+        usuario,
+        proyecto,
+    ):
+        return False
+
+    return proyecto.aprobado

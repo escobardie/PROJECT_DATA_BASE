@@ -226,6 +226,26 @@ class TipoOrdenTrabajoChoices(models.TextChoices):
         _("Garantía"),
     )
 
+class EstadoAceptacionOTChoices(models.TextChoices):
+    """
+    Estados posibles de la respuesta del cliente
+    respecto de la propuesta asociada a una OT.
+    """
+
+    PENDIENTE = (
+        "PENDIENTE",
+        _("Pendiente"),
+    )
+
+    ACEPTADA = (
+        "ACEPTADA",
+        _("Aceptada"),
+    )
+
+    RECHAZADA = (
+        "RECHAZADA",
+        _("Rechazada"),
+    )
 
 # ======================================================
 # ESTADO DE ORDEN DE TRABAJO
