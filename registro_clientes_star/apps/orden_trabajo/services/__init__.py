@@ -15,21 +15,17 @@ from .estado import (
 
 from .tecnico import (
     asignar_tecnico_ot,
-    actualizar_tecnico_ot,
-    marcar_tecnico_principal,
-    quitar_tecnico_ot,
+    desasignar_tecnico_ot,
+    establecer_tecnico_principal_ot,
 )
 
 from .seguimiento import (
-    actualizar_seguimiento_ot,
-    crear_seguimiento_ot,
-    eliminar_seguimiento_ot,
+    registrar_seguimiento_ot,
 )
 
 from .archivo import (
-    actualizar_archivo_ot,
-    crear_archivo_ot,
-    eliminar_archivo_ot,
+    adjuntar_archivo_ot,
+    retirar_archivo_ot,
 )
 
 from .instalacion import (
@@ -54,19 +50,15 @@ __all__ = (
 
     # Técnicos
     "asignar_tecnico_ot",
-    "actualizar_tecnico_ot",
-    "marcar_tecnico_principal",
-    "quitar_tecnico_ot",
+    "desasignar_tecnico_ot",
+    "establecer_tecnico_principal_ot",
 
     # Seguimientos
-    "crear_seguimiento_ot",
-    "actualizar_seguimiento_ot",
-    "eliminar_seguimiento_ot",
+    "registrar_seguimiento_ot",
 
     # Archivos
-    "crear_archivo_ot",
-    "actualizar_archivo_ot",
-    "eliminar_archivo_ot",
+    "adjuntar_archivo_ot",
+    "retirar_archivo_ot",
 
     # Instalación
     "crear_instalacion_desde_ot",

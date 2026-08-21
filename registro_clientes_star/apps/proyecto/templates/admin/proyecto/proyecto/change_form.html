@@ -1,27 +1,491 @@
 {% extends "admin/change_form.html" %}
-{% load i18n %}
+
+{% load i18n admin_urls %}
+
+
+{# ====================================================== #}
+{# JAVASCRIPT                                             #}
+{# ====================================================== #}
+
+{% block extrahead %}
+
+    {{ block.super }}
+
+    <script>
+        /**
+         * Copia el valor actual de un campo de fecha
+         * del formulario principal del Django Admin
+         * hacia el formulario del botón personalizado.
+         *
+         * Soporta:
+         *
+         * 1. DateField:
+         *      id_fecha_planificada
+         *
+         * 2. DateTimeField simple:
+         *      id_fecha_envio_cliente
+         *
+         * 3. DateTimeField dividido del Admin:
+         *      id_fecha_envio_cliente_0
+         *      id_fecha_envio_cliente_1
+         *
+         * De esta forma el usuario puede escribir
+         * una fecha y ejecutar el botón sin tener
+         * que guardar previamente el formulario.
+         */
+        function copiarFechaAdmin(
+            formulario,
+            nombreCampo
+        ) {
+
+            // =================================================
+            // CAMPO SIMPLE
+            // =================================================
+
+            const campoSimple = document.getElementById(
+                `id_${nombreCampo}`
+            );
+
+            const destinoSimple = formulario.querySelector(
+                `[name="${nombreCampo}"]`
+            );
+
+            if (
+                campoSimple
+                && destinoSimple
+            ) {
+                destinoSimple.value = campoSimple.value;
+            }
+
+
+            // =================================================
+            // DATE / DATETIME DIVIDIDO - PARTE FECHA
+            // =================================================
+
+            const campoFecha = document.getElementById(
+                `id_${nombreCampo}_0`
+            );
+
+            const destinoFecha = formulario.querySelector(
+                `[name="${nombreCampo}_0"]`
+            );
+
+            if (
+                campoFecha
+                && destinoFecha
+            ) {
+                destinoFecha.value = campoFecha.value;
+            }
+
+
+            // =================================================
+            // DATETIME DIVIDIDO - PARTE HORA
+            // =================================================
+
+            const campoHora = document.getElementById(
+                `id_${nombreCampo}_1`
+            );
+
+            const destinoHora = formulario.querySelector(
+                `[name="${nombreCampo}_1"]`
+            );
+
+            if (
+                campoHora
+                && destinoHora
+            ) {
+                destinoHora.value = campoHora.value;
+            }
+        }
+    </script>
+
+{% endblock %}
+
+
+{# ====================================================== #}
+{# ACCIONES DEL PROYECTO                                  #}
+{# ====================================================== #}
 
 {% block object-tools-items %}
 
     {{ block.super }}
 
-    {% if original and puede_generar_ot_desde_proyecto %}
-        <li>
-            <form
-                method="post"
-                action="{% url 'admin:proyecto_proyecto_generar_ot' original.pk %}"
-                style="display:inline;"
-            >
-                {% csrf_token %}
+    {% if original %}
 
-                <button
-                    type="submit"
-                    class="button"
+
+        {# ================================================== #}
+        {# REGISTRAR RECEPCIÓN                                #}
+        {# ================================================== #}
+
+        {% if puede_registrar_recepcion_proyecto %}
+
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:proyecto_proyecto_registrar_recepcion' original.pk %}"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_recepcion_solicitud'
+                        );
+                    "
                 >
-                    {% trans "Generar OT" %}
-                </button>
-            </form>
-        </li>
+
+                    {% csrf_token %}
+
+
+                    {# -------------------------------------- #}
+                    {# DateTimeField simple                   #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_recepcion_solicitud"
+                        value=""
+                    >
+
+
+                    {# -------------------------------------- #}
+                    {# DateTimeField dividido                 #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_recepcion_solicitud_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_recepcion_solicitud_1"
+                        value=""
+                    >
+
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Registrar recepción" %}
+                    </button>
+
+                </form>
+            </li>
+
+        {% endif %}
+
+
+        {# ================================================== #}
+        {# PLANIFICAR                                         #}
+        {# ================================================== #}
+
+        {% if puede_planificar_proyecto %}
+
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:proyecto_proyecto_planificar' original.pk %}"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_planificada'
+                        );
+                    "
+                >
+
+                    {% csrf_token %}
+
+
+                    {# -------------------------------------- #}
+                    {# DateField                              #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_planificada"
+                        value=""
+                    >
+
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Planificar" %}
+                    </button>
+
+                </form>
+            </li>
+
+        {% endif %}
+
+
+        {# ================================================== #}
+        {# REGISTRAR ENVÍO                                    #}
+        {# ================================================== #}
+
+        {% if puede_registrar_envio_proyecto %}
+
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:proyecto_proyecto_registrar_envio' original.pk %}"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_envio_cliente'
+                        );
+                    "
+                >
+
+                    {% csrf_token %}
+
+
+                    {# -------------------------------------- #}
+                    {# DateTimeField simple                   #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_envio_cliente"
+                        value=""
+                    >
+
+
+                    {# -------------------------------------- #}
+                    {# DateTimeField dividido                 #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_envio_cliente_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_envio_cliente_1"
+                        value=""
+                    >
+
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Registrar envío" %}
+                    </button>
+
+                </form>
+            </li>
+
+        {% endif %}
+
+
+        {# ================================================== #}
+        {# ACEPTAR PROYECTO                                   #}
+        {# ================================================== #}
+
+        {% if puede_registrar_aceptacion_proyecto %}
+
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:proyecto_proyecto_registrar_aceptacion' original.pk %}"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_respuesta_cliente'
+                        );
+                    "
+                >
+
+                    {% csrf_token %}
+
+
+                    {# -------------------------------------- #}
+                    {# DateTimeField simple                   #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_respuesta_cliente"
+                        value=""
+                    >
+
+
+                    {# -------------------------------------- #}
+                    {# DateTimeField dividido                 #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_respuesta_cliente_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_respuesta_cliente_1"
+                        value=""
+                    >
+
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Aceptar" %}
+                    </button>
+
+                </form>
+            </li>
+
+        {% endif %}
+
+
+        {# ================================================== #}
+        {# RECHAZAR PROYECTO                                  #}
+        {# ================================================== #}
+
+        {% if puede_registrar_rechazo_proyecto %}
+
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:proyecto_proyecto_registrar_rechazo' original.pk %}"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_respuesta_cliente'
+                        );
+                    "
+                >
+
+                    {% csrf_token %}
+
+
+                    {# -------------------------------------- #}
+                    {# DateTimeField simple                   #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_respuesta_cliente"
+                        value=""
+                    >
+
+
+                    {# -------------------------------------- #}
+                    {# DateTimeField dividido                 #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_respuesta_cliente_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_respuesta_cliente_1"
+                        value=""
+                    >
+
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Rechazar" %}
+                    </button>
+
+                </form>
+            </li>
+
+        {% endif %}
+
+
+        {# ================================================== #}
+        {# GENERAR ORDEN DE TRABAJO                           #}
+        {# ================================================== #}
+
+        {% if puede_generar_ot_desde_proyecto %}
+
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:proyecto_proyecto_generar_ot' original.pk %}"
+                    style="display: inline;"
+                >
+
+                    {% csrf_token %}
+
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Generar OT" %}
+                    </button>
+
+                </form>
+            </li>
+
+        {% endif %}
+
+
+        {# ================================================== #}
+        {# FINALIZAR PROYECTO                                 #}
+        {# ================================================== #}
+
+        {% if puede_finalizar_proyecto %}
+
+            <li>
+                <form
+                    method="post"
+                    action="{% url 'admin:proyecto_proyecto_finalizar' original.pk %}"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_finalizacion'
+                        );
+                    "
+                >
+
+                    {% csrf_token %}
+
+
+                    {# -------------------------------------- #}
+                    {# DateField                              #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_finalizacion"
+                        value=""
+                    >
+
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Finalizar Proyecto" %}
+                    </button>
+
+                </form>
+            </li>
+
+        {% endif %}
+
+
     {% endif %}
 
 {% endblock %}

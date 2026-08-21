@@ -5,7 +5,12 @@ from .detalle import (
 )
 
 from .estado import (
-    cambiar_estado_proyecto,
+    finalizar_proyecto,
+    planificar_proyecto,
+    registrar_aceptacion_proyecto,
+    registrar_envio_proyecto,
+    registrar_recepcion_proyecto,
+    registrar_rechazo_proyecto,
 )
 
 from .totales import (
@@ -24,7 +29,12 @@ __all__ = (
     "eliminar_detalle_proyecto",
 
     # Estado
-    "cambiar_estado_proyecto",
+    "planificar_proyecto",
+    "registrar_aceptacion_proyecto",
+    "registrar_envio_proyecto",
+    "registrar_recepcion_proyecto",
+    "registrar_rechazo_proyecto",
+    "finalizar_proyecto",
 
     # Totales
     "actualizar_totales_proyecto",

@@ -1,5 +1,140 @@
 {% extends "admin/change_form.html" %}
+
 {% load i18n %}
+
+
+{# ====================================================== #}
+{# JAVASCRIPT                                             #}
+{# ====================================================== #}
+
+{% block extrahead %}
+
+    {{ block.super }}
+
+    <script>
+        /**
+         * Copia un campo simple desde el formulario
+         * principal del Admin hacia el formulario
+         * del botón personalizado.
+         *
+         * Compatible con:
+         *
+         * - input;
+         * - textarea;
+         * - select.
+         */
+        function copiarCampoAdmin(
+            formulario,
+            nombreCampo
+        ) {
+
+            const origen = document.getElementById(
+                `id_${nombreCampo}`
+            );
+
+            const destino = formulario.querySelector(
+                `[name="${nombreCampo}"]`
+            );
+
+            if (
+                origen
+                && destino
+            ) {
+                destino.value = origen.value;
+            }
+        }
+
+
+        /**
+         * Copia una fecha/hora actualmente escrita
+         * en el formulario principal.
+         *
+         * Soporta:
+         *
+         * 1. campo simple:
+         *
+         *      id_fecha_inicio
+         *
+         * 2. AdminSplitDateTime:
+         *
+         *      id_fecha_inicio_0
+         *      id_fecha_inicio_1
+         *
+         * Esto permite ejecutar el botón sin guardar
+         * previamente el formulario principal.
+         */
+        function copiarFechaAdmin(
+            formulario,
+            nombreCampo
+        ) {
+
+            // =================================================
+            // CAMPO SIMPLE
+            // =================================================
+
+            const campoSimple = document.getElementById(
+                `id_${nombreCampo}`
+            );
+
+            const destinoSimple = formulario.querySelector(
+                `[name="${nombreCampo}"]`
+            );
+
+            if (
+                campoSimple
+                && destinoSimple
+            ) {
+                destinoSimple.value = campoSimple.value;
+            }
+
+
+            // =================================================
+            // FECHA DEL WIDGET DIVIDIDO
+            // =================================================
+
+            const campoFecha = document.getElementById(
+                `id_${nombreCampo}_0`
+            );
+
+            const destinoFecha = formulario.querySelector(
+                `[name="${nombreCampo}_0"]`
+            );
+
+            if (
+                campoFecha
+                && destinoFecha
+            ) {
+                destinoFecha.value = campoFecha.value;
+            }
+
+
+            // =================================================
+            // HORA DEL WIDGET DIVIDIDO
+            // =================================================
+
+            const campoHora = document.getElementById(
+                `id_${nombreCampo}_1`
+            );
+
+            const destinoHora = formulario.querySelector(
+                `[name="${nombreCampo}_1"]`
+            );
+
+            if (
+                campoHora
+                && destinoHora
+            ) {
+                destinoHora.value = campoHora.value;
+            }
+        }
+    </script>
+
+{% endblock %}
+
+
+{# ====================================================== #}
+{# ACCIONES DE LA INSTALACIÓN                             #}
+{# ====================================================== #}
 
 {% block object-tools-items %}
 
@@ -7,122 +142,345 @@
 
     {% if original %}
 
+
+        {# ================================================== #}
+        {# PROGRAMAR INSTALACIÓN                              #}
+        {# ================================================== #}
+
         {% if puede_programar_instalacion %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:instalacion_instalacion_programar' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarCampoAdmin(
+                            this,
+                            'fecha_programada'
+                        );
+
+                        copiarCampoAdmin(
+                            this,
+                            'duracion_estimada'
+                        );
+                    "
                 >
+
                     {% csrf_token %}
+
+
+                    {# -------------------------------------- #}
+                    {# Fecha programada - DateField           #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_programada"
+                        value=""
+                    >
+
+
+                    {# -------------------------------------- #}
+                    {# Duración estimada - DurationField      #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="duracion_estimada"
+                        value=""
+                    >
+
 
                     <button
                         type="submit"
                         class="button"
                     >
-                        {% trans "Programar instalación" %}
+                        {% translate "Programar instalación" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
 
+        {# ================================================== #}
+        {# INICIAR INSTALACIÓN                                #}
+        {# ================================================== #}
+
         {% if puede_iniciar_instalacion %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:instalacion_instalacion_iniciar' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_inicio'
+                        );
+                    "
                 >
+
                     {% csrf_token %}
+
+
+                    {# -------------------------------------- #}
+                    {# DateTimeField simple                   #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_inicio"
+                        value=""
+                    >
+
+
+                    {# -------------------------------------- #}
+                    {# AdminSplitDateTime                     #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_inicio_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_inicio_1"
+                        value=""
+                    >
+
 
                     <button
                         type="submit"
                         class="button"
                     >
-                        {% trans "Iniciar instalación" %}
+                        {% translate "Iniciar instalación" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
 
+        {# ================================================== #}
+        {# FINALIZAR INSTALACIÓN                              #}
+        {# ================================================== #}
+
         {% if puede_finalizar_instalacion %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:instalacion_instalacion_finalizar' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_finalizacion'
+                        );
+                    "
                 >
+
                     {% csrf_token %}
+
+
+                    {# -------------------------------------- #}
+                    {# DateTimeField simple                   #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_finalizacion"
+                        value=""
+                    >
+
+
+                    {# -------------------------------------- #}
+                    {# AdminSplitDateTime                     #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_finalizacion_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_finalizacion_1"
+                        value=""
+                    >
+
 
                     <button
                         type="submit"
                         class="button"
                     >
-                        {% trans "Finalizar instalación" %}
+                        {% translate "Finalizar instalación" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
 
+        {# ================================================== #}
+        {# CANCELAR INSTALACIÓN                               #}
+        {# ================================================== #}
+
         {% if puede_cancelar_instalacion %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:instalacion_instalacion_cancelar' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
                 >
+
                     {% csrf_token %}
 
                     <button
                         type="submit"
                         class="button"
                     >
-                        {% trans "Cancelar instalación" %}
+                        {% translate "Cancelar instalación" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
 
+        {# ================================================== #}
+        {# REGISTRAR CONFORMIDAD                              #}
+        {# ================================================== #}
+
         {% if puede_registrar_conformidad %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:instalacion_instalacion_registrar_conformidad' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarCampoAdmin(
+                            this,
+                            'recibido_por'
+                        );
+
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_conformidad'
+                        );
+
+                        copiarCampoAdmin(
+                            this,
+                            'observaciones_conformidad'
+                        );
+                    "
                 >
+
                     {% csrf_token %}
+
+
+                    {# -------------------------------------- #}
+                    {# Persona que recibió                   #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="recibido_por"
+                        value=""
+                    >
+
+
+                    {# -------------------------------------- #}
+                    {# Fecha conformidad simple               #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_conformidad"
+                        value=""
+                    >
+
+
+                    {# -------------------------------------- #}
+                    {# AdminSplitDateTime                     #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="fecha_conformidad_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_conformidad_1"
+                        value=""
+                    >
+
+
+                    {# -------------------------------------- #}
+                    {# Observaciones                          #}
+                    {# -------------------------------------- #}
+
+                    <input
+                        type="hidden"
+                        name="observaciones_conformidad"
+                        value=""
+                    >
+
 
                     <button
                         type="submit"
                         class="button"
                     >
-                        {% trans "Registrar conformidad" %}
+                        {% translate "Registrar conformidad" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
+
+
+        {# ================================================== #}
+        {# IMPORTAR DISPOSITIVOS DEL PROYECTO                 #}
+        {# ================================================== #}
+
         {% if puede_importar_dispositivos_proyecto %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:instalacion_instalacion_importar_dispositivos_proyecto' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
                 >
+
                     {% csrf_token %}
 
                     <button
                         type="submit"
                         class="button"
                     >
-                        {% trans "Importar dispositivos del proyecto" %}
+                        {% translate "Importar dispositivos del proyecto" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
+
 
     {% endif %}
 

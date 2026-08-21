@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Prefetch
@@ -5,8 +6,8 @@ from django.http import (
     HttpResponseNotAllowed,
     HttpResponseRedirect,
 )
-from django.utils.html import format_html
 from django.urls import path, reverse
+from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 from apps.instalacion.models import (
@@ -57,11 +58,20 @@ class InstalacionAdmin(admin.ModelAdmin):
             ↓
         Models
 
-    El estado se modifica exclusivamente mediante
-    services.
+    Regla general para fechas:
+
+        1. fecha escrita actualmente en el Admin;
+        2. fecha previamente guardada;
+        3. fecha actual resuelta por el service.
 
     Las fechas permanecen editables para permitir
     registrar la trazabilidad real.
+
+    El estado se modifica exclusivamente mediante
+    services.
+
+    usuario_conformidad registra quién confirmó
+    formalmente la conformidad.
     """
 
     # ======================================================
@@ -169,7 +179,10 @@ class InstalacionAdmin(admin.ModelAdmin):
     @admin.display(
         description=_("Origen"),
     )
-    def mostrar_origen(self, obj):
+    def mostrar_origen(
+        self,
+        obj,
+    ):
         """
         Muestra el origen principal de la OT.
         """
@@ -193,7 +206,10 @@ class InstalacionAdmin(admin.ModelAdmin):
     @admin.display(
         description=_("Responsable"),
     )
-    def responsable(self, obj):
+    def responsable(
+        self,
+        obj,
+    ):
         """
         Devuelve el técnico responsable principal
         de la instalación.
@@ -214,7 +230,10 @@ class InstalacionAdmin(admin.ModelAdmin):
         description=_("Dispositivos"),
         ordering="_cantidad_dispositivos",
     )
-    def cantidad_dispositivos(self, obj):
+    def cantidad_dispositivos(
+        self,
+        obj,
+    ):
         """
         Devuelve la cantidad de dispositivos
         registrados en la instalación.
@@ -226,18 +245,27 @@ class InstalacionAdmin(admin.ModelAdmin):
         boolean=True,
         description=_("Conf."),
     )
-    def mostrar_conformidad(self, obj):
+    def mostrar_conformidad(
+        self,
+        obj,
+    ):
         """
-        Indica si existe conformidad registrada.
+        Indica si la conformidad fue registrada
+        formalmente.
         """
 
-        return obj.fecha_conformidad is not None
+        return bool(
+            obj.usuario_conformidad_id
+        )
 
     @admin.display(
         boolean=True,
         description=_("Vencida"),
     )
-    def mostrar_vencida(self, obj):
+    def mostrar_vencida(
+        self,
+        obj,
+    ):
         """
         Indica si la instalación está vencida.
         """
@@ -251,7 +279,10 @@ class InstalacionAdmin(admin.ModelAdmin):
     @admin.display(
         description=_("Orden de trabajo"),
     )
-    def mostrar_orden_trabajo(self, obj):
+    def mostrar_orden_trabajo(
+        self,
+        obj,
+    ):
         """
         Muestra la OT asociada como enlace directo
         a su formulario en el Admin.
@@ -267,7 +298,9 @@ class InstalacionAdmin(admin.ModelAdmin):
 
         url = reverse(
             "admin:orden_trabajo_ordentrabajo_change",
-            args=(orden.pk,),
+            args=(
+                orden.pk,
+            ),
             current_app=self.admin_site.name,
         )
 
@@ -277,12 +310,68 @@ class InstalacionAdmin(admin.ModelAdmin):
             orden,
         )
 
+    @admin.display(
+        description=_("Proyecto"),
+    )
+    def mostrar_proyecto(
+        self,
+        obj,
+    ):
+        if not obj or not obj.pk:
+            return "-"
+
+        return obj.proyecto or "-"
+
+    @admin.display(
+        description=_("Sucursal"),
+    )
+    def mostrar_sucursal(
+        self,
+        obj,
+    ):
+        if not obj or not obj.pk:
+            return "-"
+
+        return obj.sucursal or "-"
+
+    @admin.display(
+        description=_("Servicio contratado"),
+    )
+    def mostrar_servicio_contratado(
+        self,
+        obj,
+    ):
+        if not obj or not obj.pk:
+            return "-"
+
+        return (
+            obj.servicio_contratado
+            or "-"
+        )
+
+    @admin.display(
+        description=_("Presupuesto Telecom"),
+    )
+    def mostrar_presupuesto_telecom(
+        self,
+        obj,
+    ):
+        if not obj or not obj.pk:
+            return "-"
+
+        return (
+            obj.presupuesto_telecom
+            or "-"
+        )
 
     # ======================================================
     # QUERYSET
     # ======================================================
 
-    def get_queryset(self, request):
+    def get_queryset(
+        self,
+        request,
+    ):
         """
         Optimiza las relaciones y valores utilizados
         por el administrador.
@@ -309,6 +398,7 @@ class InstalacionAdmin(admin.ModelAdmin):
                 "orden_trabajo__servicio_contratado",
                 "orden_trabajo__presupuesto_telecom",
                 "orden_trabajo__responsable",
+                "usuario_conformidad",
             )
             .prefetch_related(
                 Prefetch(
@@ -345,9 +435,13 @@ class InstalacionAdmin(admin.ModelAdmin):
         "mostrar_sucursal",
         "mostrar_servicio_contratado",
         "mostrar_presupuesto_telecom",
+
+        # Auditoría de conformidad
+        "usuario_conformidad",
+
+        # Auditoría base
         "created_at",
         "updated_at",
-
     )
 
     def get_readonly_fields(
@@ -359,8 +453,10 @@ class InstalacionAdmin(admin.ModelAdmin):
         El estado se modifica exclusivamente
         mediante services.
 
-        Las fechas permanecen editables para permitir
-        registrar la fecha real de cada operación.
+        La OT queda protegida luego de crear
+        la instalación.
+
+        Las fechas permanecen editables.
         """
 
         campos = list(
@@ -385,46 +481,6 @@ class InstalacionAdmin(admin.ModelAdmin):
         )
 
     # ======================================================
-    # INFORMACIÓN DERIVADA
-    # ======================================================
-
-    @admin.display(
-        description=_("Proyecto"),
-    )
-    def mostrar_proyecto(self, obj):
-        if not obj or not obj.pk:
-            return "-"
-
-        return obj.proyecto or "-"
-
-    @admin.display(
-        description=_("Sucursal"),
-    )
-    def mostrar_sucursal(self, obj):
-        if not obj or not obj.pk:
-            return "-"
-
-        return obj.sucursal or "-"
-
-    @admin.display(
-        description=_("Servicio contratado"),
-    )
-    def mostrar_servicio_contratado(self, obj):
-        if not obj or not obj.pk:
-            return "-"
-
-        return obj.servicio_contratado or "-"
-
-    @admin.display(
-        description=_("Presupuesto Telecom"),
-    )
-    def mostrar_presupuesto_telecom(self, obj):
-        if not obj or not obj.pk:
-            return "-"
-
-        return obj.presupuesto_telecom or "-"
-
-    # ======================================================
     # FORMULARIO
     # ======================================================
 
@@ -443,6 +499,7 @@ class InstalacionAdmin(admin.ModelAdmin):
                 ),
             },
         ),
+
         (
             _("Origen de la orden"),
             {
@@ -457,6 +514,7 @@ class InstalacionAdmin(admin.ModelAdmin):
                 ),
             },
         ),
+
         (
             _("Planificación"),
             {
@@ -468,6 +526,7 @@ class InstalacionAdmin(admin.ModelAdmin):
                 ),
             },
         ),
+
         (
             _("Ejecución"),
             {
@@ -479,20 +538,25 @@ class InstalacionAdmin(admin.ModelAdmin):
                 ),
             },
         ),
+
         (
             _("Conformidad"),
             {
                 "fields": (
                     "recibido_por",
-                    "fecha_conformidad",
+                    (
+                        "fecha_conformidad",
+                        "usuario_conformidad",
+                    ),
                     "observaciones_conformidad",
                 ),
                 "description": _(
-                    "La conformidad se registra una vez "
-                    "finalizada la instalación."
+                    "La conformidad puede registrarse "
+                    "una vez finalizada la instalación."
                 ),
             },
         ),
+
         (
             _("Observaciones"),
             {
@@ -501,6 +565,7 @@ class InstalacionAdmin(admin.ModelAdmin):
                 ),
             },
         ),
+
         (
             _("Auditoría"),
             {
@@ -528,10 +593,12 @@ class InstalacionAdmin(admin.ModelAdmin):
     # URLS PERSONALIZADAS
     # ======================================================
 
-    def get_urls(self):
+    def get_urls(
+        self,
+    ):
         """
-        Agrega endpoints para gestionar el ciclo
-        de vida de la instalación.
+        Agrega endpoints para gestionar
+        el ciclo de vida de la instalación.
         """
 
         urls = super().get_urls()
@@ -547,6 +614,7 @@ class InstalacionAdmin(admin.ModelAdmin):
                     "programar"
                 ),
             ),
+
             path(
                 "<path:object_id>/iniciar/",
                 self.admin_site.admin_view(
@@ -557,6 +625,7 @@ class InstalacionAdmin(admin.ModelAdmin):
                     "iniciar"
                 ),
             ),
+
             path(
                 "<path:object_id>/finalizar/",
                 self.admin_site.admin_view(
@@ -567,6 +636,7 @@ class InstalacionAdmin(admin.ModelAdmin):
                     "finalizar"
                 ),
             ),
+
             path(
                 "<path:object_id>/cancelar/",
                 self.admin_site.admin_view(
@@ -577,6 +647,7 @@ class InstalacionAdmin(admin.ModelAdmin):
                     "cancelar"
                 ),
             ),
+
             path(
                 "<path:object_id>/registrar-conformidad/",
                 self.admin_site.admin_view(
@@ -587,6 +658,7 @@ class InstalacionAdmin(admin.ModelAdmin):
                     "registrar_conformidad"
                 ),
             ),
+
             path(
                 "<path:object_id>/importar-dispositivos-proyecto/",
                 self.admin_site.admin_view(
@@ -626,7 +698,9 @@ class InstalacionAdmin(admin.ModelAdmin):
             url
         )
 
-    def _redirect_changelist(self):
+    def _redirect_changelist(
+        self,
+    ):
         """
         Redirige al listado de instalaciones.
         """
@@ -655,7 +729,10 @@ class InstalacionAdmin(admin.ModelAdmin):
             object_id,
         )
 
-    def _validar_post(self, request):
+    def _validar_post(
+        self,
+        request,
+    ):
         """
         Las operaciones de escritura solamente
         pueden ejecutarse mediante POST.
@@ -680,19 +757,216 @@ class InstalacionAdmin(admin.ModelAdmin):
         visible del Admin.
         """
 
-        if hasattr(exc, "messages"):
+        if hasattr(
+            exc,
+            "messages",
+        ):
             mensaje = " ".join(
                 str(item)
                 for item in exc.messages
             )
+
         else:
-            mensaje = str(exc)
+            mensaje = str(
+                exc
+            )
 
         self.message_user(
             request,
             mensaje,
             level=messages.ERROR,
         )
+
+    # ======================================================
+    # HELPER DATE
+    # ======================================================
+
+    def _obtener_fecha_post(
+        self,
+        request,
+        nombre_campo,
+    ):
+        """
+        Obtiene un DateField enviado desde
+        un botón personalizado.
+
+        Retorna None si no fue indicado.
+
+        El service resolverá:
+
+            fecha enviada
+                ↓
+            fecha guardada
+                ↓
+            fecha actual
+        """
+
+        valor = (
+            request.POST.get(
+                nombre_campo
+            )
+            or ""
+        ).strip()
+
+        if not valor:
+            return None
+
+        try:
+            return forms.DateField(
+                required=False,
+            ).clean(
+                valor
+            )
+
+        except ValidationError as exc:
+            raise ValidationError(
+                {
+                    nombre_campo: _(
+                        "La fecha indicada no tiene "
+                        "un formato válido."
+                    )
+                }
+            ) from exc
+
+    # ======================================================
+    # HELPER DATETIME
+    # ======================================================
+
+    def _obtener_fecha_hora_post(
+        self,
+        request,
+        nombre_campo,
+    ):
+        """
+        Obtiene un DateTimeField enviado
+        desde un botón personalizado.
+
+        Soporta:
+
+        - DateTimeField simple;
+        - AdminSplitDateTime:
+              campo_0 = fecha
+              campo_1 = hora.
+
+        Retorna None cuando no se indicó valor.
+        """
+
+        # ==================================================
+        # CAMPO SIMPLE
+        # ==================================================
+
+        valor_simple = (
+            request.POST.get(
+                nombre_campo
+            )
+            or ""
+        ).strip()
+
+        if valor_simple:
+
+            try:
+                return forms.DateTimeField(
+                    required=False,
+                ).clean(
+                    valor_simple
+                )
+
+            except ValidationError as exc:
+                raise ValidationError(
+                    {
+                        nombre_campo: _(
+                            "La fecha y hora indicadas "
+                            "no tienen un formato válido."
+                        )
+                    }
+                ) from exc
+
+        # ==================================================
+        # WIDGET DIVIDIDO
+        # ==================================================
+
+        valor_fecha = (
+            request.POST.get(
+                f"{nombre_campo}_0"
+            )
+            or ""
+        ).strip()
+
+        valor_hora = (
+            request.POST.get(
+                f"{nombre_campo}_1"
+            )
+            or ""
+        ).strip()
+
+        if (
+            not valor_fecha
+            and not valor_hora
+        ):
+            return None
+
+        try:
+            return forms.SplitDateTimeField(
+                required=False,
+            ).clean(
+                [
+                    valor_fecha,
+                    valor_hora,
+                ]
+            )
+
+        except ValidationError as exc:
+            raise ValidationError(
+                {
+                    nombre_campo: _(
+                        "La fecha y hora indicadas "
+                        "no tienen un formato válido."
+                    )
+                }
+            ) from exc
+
+    # ======================================================
+    # HELPER DURACIÓN
+    # ======================================================
+
+    def _obtener_duracion_post(
+        self,
+        request,
+        nombre_campo,
+    ):
+        """
+        Obtiene un DurationField enviado desde
+        un botón personalizado.
+
+        Si no fue indicado retorna None.
+        """
+
+        valor = (
+            request.POST.get(
+                nombre_campo
+            )
+            or ""
+        ).strip()
+
+        if not valor:
+            return None
+
+        try:
+            return forms.DurationField(
+                required=False,
+            ).clean(
+                valor
+            )
+
+        except ValidationError as exc:
+            raise ValidationError(
+                {
+                    nombre_campo: _(
+                        "La duración indicada "
+                        "no tiene un formato válido."
+                    )
+                }
+            ) from exc
 
     # ======================================================
     # PROGRAMACIÓN
@@ -703,6 +977,13 @@ class InstalacionAdmin(admin.ModelAdmin):
         request,
         object_id,
     ):
+        """
+        Programa la instalación.
+
+        Fecha:
+        escrita → guardada → actual.
+        """
+
         respuesta = self._validar_post(
             request
         )
@@ -735,14 +1016,47 @@ class InstalacionAdmin(admin.ModelAdmin):
                 obj
             )
 
+        # ==================================================
+        # OBTENER DATOS DEL FORMULARIO
+        # ==================================================
+
+        try:
+            fecha_programada = (
+                self._obtener_fecha_post(
+                    request,
+                    "fecha_programada",
+                )
+            )
+
+            duracion_estimada = (
+                self._obtener_duracion_post(
+                    request,
+                    "duracion_estimada",
+                )
+            )
+
+        except ValidationError as exc:
+            self._mostrar_error(
+                request,
+                exc,
+            )
+
+            return self._redirect_change(
+                obj
+            )
+
+        # ==================================================
+        # SERVICE
+        # ==================================================
+
         try:
             programar_instalacion(
                 instalacion=obj,
                 fecha_programada=(
-                    obj.fecha_programada
+                    fecha_programada
                 ),
                 duracion_estimada=(
-                    obj.duracion_estimada
+                    duracion_estimada
                 ),
             )
 
@@ -774,6 +1088,13 @@ class InstalacionAdmin(admin.ModelAdmin):
         request,
         object_id,
     ):
+        """
+        Inicia la instalación.
+
+        Fecha:
+        escrita → guardada → actual.
+        """
+
         respuesta = self._validar_post(
             request
         )
@@ -806,9 +1127,36 @@ class InstalacionAdmin(admin.ModelAdmin):
                 obj
             )
 
+        # ==================================================
+        # FECHA
+        # ==================================================
+
+        try:
+            fecha = (
+                self._obtener_fecha_hora_post(
+                    request,
+                    "fecha_inicio",
+                )
+            )
+
+        except ValidationError as exc:
+            self._mostrar_error(
+                request,
+                exc,
+            )
+
+            return self._redirect_change(
+                obj
+            )
+
+        # ==================================================
+        # SERVICE
+        # ==================================================
+
         try:
             iniciar_instalacion(
                 instalacion=obj,
+                fecha=fecha,
             )
 
         except ValidationError as exc:
@@ -839,6 +1187,13 @@ class InstalacionAdmin(admin.ModelAdmin):
         request,
         object_id,
     ):
+        """
+        Finaliza la instalación.
+
+        Fecha:
+        escrita → guardada → actual.
+        """
+
         respuesta = self._validar_post(
             request
         )
@@ -871,9 +1226,36 @@ class InstalacionAdmin(admin.ModelAdmin):
                 obj
             )
 
+        # ==================================================
+        # FECHA
+        # ==================================================
+
+        try:
+            fecha = (
+                self._obtener_fecha_hora_post(
+                    request,
+                    "fecha_finalizacion",
+                )
+            )
+
+        except ValidationError as exc:
+            self._mostrar_error(
+                request,
+                exc,
+            )
+
+            return self._redirect_change(
+                obj
+            )
+
+        # ==================================================
+        # SERVICE
+        # ==================================================
+
         try:
             finalizar_instalacion(
                 instalacion=obj,
+                fecha=fecha,
             )
 
         except ValidationError as exc:
@@ -904,6 +1286,13 @@ class InstalacionAdmin(admin.ModelAdmin):
         request,
         object_id,
     ):
+        """
+        Cancela la instalación.
+
+        Actualmente la instalación no posee
+        una fecha específica de cancelación.
+        """
+
         respuesta = self._validar_post(
             request
         )
@@ -969,6 +1358,17 @@ class InstalacionAdmin(admin.ModelAdmin):
         request,
         object_id,
     ):
+        """
+        Registra formalmente la conformidad.
+
+        Se utilizan primero los valores escritos
+        actualmente en el Admin.
+
+        La fecha sigue la regla:
+
+            escrita → guardada → actual.
+        """
+
         respuesta = self._validar_post(
             request
         )
@@ -1001,13 +1401,63 @@ class InstalacionAdmin(admin.ModelAdmin):
                 obj
             )
 
+        # ==================================================
+        # DATOS ESCRITOS EN EL ADMIN
+        # ==================================================
+
+        recibido_por = (
+            request.POST.get(
+                "recibido_por"
+            )
+            or obj.recibido_por
+            or ""
+        ).strip()
+
+        observaciones = (
+            request.POST.get(
+                "observaciones_conformidad"
+            )
+            if (
+                "observaciones_conformidad"
+                in request.POST
+            )
+            else obj.observaciones_conformidad
+        )
+
+        # ==================================================
+        # FECHA
+        # ==================================================
+
+        try:
+            fecha = (
+                self._obtener_fecha_hora_post(
+                    request,
+                    "fecha_conformidad",
+                )
+            )
+
+        except ValidationError as exc:
+            self._mostrar_error(
+                request,
+                exc,
+            )
+
+            return self._redirect_change(
+                obj
+            )
+
+        # ==================================================
+        # SERVICE
+        # ==================================================
+
         try:
             registrar_conformidad_instalacion(
                 instalacion=obj,
-                recibido_por=obj.recibido_por,
-                fecha=obj.fecha_conformidad,
+                usuario=request.user,
+                recibido_por=recibido_por,
+                fecha=fecha,
                 observaciones=(
-                    obj.observaciones_conformidad
+                    observaciones
                 ),
             )
 
@@ -1029,6 +1479,7 @@ class InstalacionAdmin(admin.ModelAdmin):
         return self._redirect_change(
             obj
         )
+
     # ======================================================
     # IMPORTAR DISPOSITIVOS DEL PROYECTO
     # ======================================================
@@ -1044,6 +1495,9 @@ class InstalacionAdmin(admin.ModelAdmin):
 
         Cada unidad del ProyectoDetalle genera un
         InstalacionDispositivo individual.
+
+        Esta operación no modifica fechas
+        de la instalación.
         """
 
         respuesta = self._validar_post(
@@ -1110,7 +1564,9 @@ class InstalacionAdmin(admin.ModelAdmin):
                     "dispositivos correctamente."
                 )
                 % {
-                    "cantidad": len(dispositivos),
+                    "cantidad": len(
+                        dispositivos
+                    ),
                 },
                 level=messages.SUCCESS,
             )
@@ -1185,9 +1641,12 @@ class InstalacionAdmin(admin.ModelAdmin):
                             obj,
                         )
                     ),
-                    "puede_importar_dispositivos_proyecto": bool(
-                        obj.orden_trabajo.proyecto_id
-                        and not obj.dispositivos.exists()
+
+                    "puede_importar_dispositivos_proyecto": (
+                        bool(
+                            obj.orden_trabajo.proyecto_id
+                            and not obj.dispositivos.exists()
+                        )
                     ),
                 }
             )

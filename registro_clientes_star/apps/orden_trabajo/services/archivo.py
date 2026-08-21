@@ -1,19 +1,6 @@
-"""
-Servicios relacionados con archivos
-de órdenes de trabajo.
-
-Este módulo centraliza:
-
-- carga de archivos;
-- actualización de descripción;
-- eliminación de archivos.
-
-Todas las operaciones de escritura se ejecutan
-dentro de transacciones atómicas.
-"""
-
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.orden_trabajo.models import (
@@ -25,86 +12,126 @@ from apps.usuarios.models import Usuario
 
 
 # ======================================================
-# FUNCIONES PRIVADAS
+# VALIDACIONES INTERNAS
 # ======================================================
 
-def _validar_orden(
-    orden_trabajo: OrdenTrabajo | None,
+
+def _validar_orden_guardada(
+    orden_trabajo: OrdenTrabajo,
 ) -> None:
     """
-    Valida que la orden exista y esté guardada.
+    Verifica que la Orden de Trabajo exista
+    físicamente en la base de datos.
+
+    Los archivos solamente pueden gestionarse
+    sobre una OT previamente guardada.
     """
 
-    if orden_trabajo is None:
-        raise ValueError(
-            "Debe proporcionar una orden de trabajo válida."
-        )
-
-    if not orden_trabajo.pk:
-        raise ValueError(
-            "La orden de trabajo debe estar guardada."
+    if (
+        orden_trabajo is None
+        or not orden_trabajo.pk
+    ):
+        raise ValidationError(
+            _(
+                "La orden de trabajo debe estar "
+                "guardada antes de gestionar archivos."
+            )
         )
 
 
 def _validar_usuario(
-    usuario: Usuario | None,
+    usuario: Usuario,
 ) -> None:
     """
-    Valida que el usuario exista y esté guardado.
+    Verifica que el usuario que ejecuta
+    la operación exista y se encuentre activo.
     """
 
-    if usuario is None:
-        raise ValueError(
-            "Debe proporcionar un usuario válido."
-        )
-
-    if not usuario.pk:
-        raise ValueError(
-            "El usuario debe estar guardado."
-        )
-
-
-def _validar_archivo(
-    archivo,
-) -> None:
-    """
-    Valida que se haya proporcionado un archivo.
-    """
-
-    if not archivo:
+    if (
+        usuario is None
+        or not usuario.pk
+    ):
         raise ValidationError(
-            {
-                "archivo": _(
-                    "Debe proporcionar un archivo."
-                )
-            }
+            _(
+                "Debe indicar el usuario que realiza "
+                "la operación."
+            )
+        )
+
+    if not usuario.is_active:
+        raise ValidationError(
+            _(
+                "El usuario que realiza la operación "
+                "no se encuentra activo."
+            )
         )
 
 
-def _normalizar_descripcion(
-    descripcion: str | None,
-) -> str:
+def _validar_archivo_guardado(
+    archivo_ot: OrdenTrabajoArchivo,
+) -> None:
     """
-    Normaliza la descripción del archivo.
+    Verifica que el registro documental
+    exista físicamente en la base de datos.
+    """
+
+    if (
+        archivo_ot is None
+        or not archivo_ot.pk
+    ):
+        raise ValidationError(
+            _(
+                "El archivo de la orden de trabajo "
+                "debe estar guardado."
+            )
+        )
+
+
+# ======================================================
+# FECHAS
+# ======================================================
+
+
+def _resolver_fecha_hora(
+    *,
+    fecha_explicita=None,
+    fecha_existente=None,
+):
+    """
+    Resuelve una fecha/hora utilizando
+    la regla general utilizada en el proyecto:
+
+        1. fecha proporcionada explícitamente;
+        2. fecha ya existente;
+        3. fecha/hora actual.
+
+    Esta regla permite registrar acontecimientos
+    históricos sin perder la fecha real de carga.
     """
 
     return (
-        descripcion
-        or ""
-    ).strip()
+        fecha_explicita
+        or fecha_existente
+        or timezone.now()
+    )
+
+
+# ======================================================
+# BLOQUEOS
+# ======================================================
 
 
 def _bloquear_orden(
     orden_trabajo: OrdenTrabajo,
 ) -> OrdenTrabajo:
     """
-    Recupera y bloquea la OT durante
-    la transacción actual.
-    """
+    Recupera y bloquea la Orden de Trabajo
+    durante la transacción actual.
 
-    _validar_orden(
-        orden_trabajo
-    )
+    Evita que dos operaciones concurrentes
+    modifiquen información relacionada con la OT
+    al mismo tiempo.
+    """
 
     return (
         OrdenTrabajo.objects
@@ -119,19 +146,9 @@ def _bloquear_archivo(
     archivo_ot: OrdenTrabajoArchivo,
 ) -> OrdenTrabajoArchivo:
     """
-    Recupera y bloquea un archivo asociado
-    a una orden de trabajo.
+    Recupera y bloquea un archivo de OT
+    durante la transacción actual.
     """
-
-    if archivo_ot is None:
-        raise ValueError(
-            "Debe proporcionar un archivo válido."
-        )
-
-    if not archivo_ot.pk:
-        raise ValueError(
-            "El archivo debe estar guardado."
-        )
 
     return (
         OrdenTrabajoArchivo.objects
@@ -139,6 +156,7 @@ def _bloquear_archivo(
         .select_related(
             "orden_trabajo",
             "usuario",
+            "usuario_retiro",
         )
         .get(
             pk=archivo_ot.pk,
@@ -147,60 +165,256 @@ def _bloquear_archivo(
 
 
 # ======================================================
-# CREAR ARCHIVO
+# REGLAS DOCUMENTALES
 # ======================================================
 
+
+def _validar_gestion_documental(
+    orden_trabajo: OrdenTrabajo,
+) -> None:
+    """
+    Valida que la Orden de Trabajo permita
+    operaciones documentales.
+
+    Regla funcional:
+
+    - OT activa:
+        permite documentación.
+
+    - OT finalizada:
+        permite documentación posterior,
+        por ejemplo:
+            * actas;
+            * informes;
+            * conformidades;
+            * evidencias;
+            * documentación administrativa.
+
+    - OT cancelada:
+        no permite nuevas operaciones documentales.
+
+    IMPORTANTE:
+    El valor "CANCELADA" corresponde al valor funcional
+    utilizado actualmente por los estados de OT.
+    """
+
+    if orden_trabajo.estado == "CANCELADA":
+        raise ValidationError(
+            _(
+                "No se pueden gestionar archivos "
+                "en una orden de trabajo cancelada."
+            )
+        )
+
+
+# ======================================================
+# NORMALIZACIÓN
+# ======================================================
+
+
+def _normalizar_descripcion(
+    descripcion: str,
+) -> str:
+    """
+    Normaliza la descripción del archivo.
+    """
+
+    return (
+        descripcion
+        or ""
+    ).strip()
+
+
+def _normalizar_motivo(
+    motivo: str,
+) -> str:
+    """
+    Normaliza y valida el motivo utilizado
+    para retirar un archivo.
+    """
+
+    motivo = (
+        motivo
+        or ""
+    ).strip()
+
+    if not motivo:
+        raise ValidationError(
+            {
+                "motivo_retiro": _(
+                    "Debe indicar el motivo por el cual "
+                    "se retira el archivo."
+                )
+            }
+        )
+
+    return motivo
+
+
+# ======================================================
+# VALIDACIÓN DEL ARCHIVO SUBIDO
+# ======================================================
+
+
+def _validar_archivo_subido(
+    archivo,
+) -> None:
+    """
+    Realiza las validaciones básicas sobre
+    el archivo recibido.
+
+    Por ahora se verifica:
+
+    - existencia del archivo;
+    - que no sea un archivo vacío.
+
+    Las restricciones de tamaño máximo,
+    extensiones o tipos MIME pueden incorporarse
+    posteriormente como política documental.
+    """
+
+    if not archivo:
+        raise ValidationError(
+            {
+                "archivo": _(
+                    "Debe seleccionar un archivo."
+                )
+            }
+        )
+
+    tamanio = getattr(
+        archivo,
+        "size",
+        None,
+    )
+
+    if tamanio == 0:
+        raise ValidationError(
+            {
+                "archivo": _(
+                    "El archivo seleccionado está vacío."
+                )
+            }
+        )
+
+
+# ======================================================
+# ADJUNTAR ARCHIVO
+# ======================================================
+
+
 @transaction.atomic
-def crear_archivo_ot(
+def adjuntar_archivo_ot(
     *,
     orden_trabajo: OrdenTrabajo,
     usuario: Usuario,
     archivo,
     descripcion: str = "",
+    fecha_documento=None,
 ) -> OrdenTrabajoArchivo:
     """
-    Carga un archivo asociado a una orden de trabajo.
+    Adjunta un nuevo archivo a una Orden de Trabajo.
 
-    Args:
-        orden_trabajo:
-            Orden a la cual se asociará el archivo.
+    El archivo queda registrado como parte
+    del historial documental de la OT.
 
-        usuario:
-            Usuario que realiza la carga.
+    El usuario que realiza la carga se registra
+    automáticamente y no debe ser seleccionado
+    manualmente desde la interfaz.
 
-        archivo:
-            Archivo recibido por Django.
+    La fecha funcional utiliza:
 
-        descripcion:
-            Descripción breve opcional.
+        fecha_documento explícita
+            ↓
+        timezone.now()
 
-    Returns:
-        OrdenTrabajoArchivo:
-            Registro creado.
+    El registro comienza siempre activo.
+
+    Una vez creado, el archivo no debe
+    modificarse ni reemplazarse directamente.
+    Si deja de ser válido debe utilizarse
+    retirar_archivo_ot().
     """
+
+    # ==================================================
+    # VALIDACIONES PREVIAS
+    # ==================================================
+
+    _validar_orden_guardada(
+        orden_trabajo
+    )
 
     _validar_usuario(
         usuario
     )
 
-    _validar_archivo(
+    _validar_archivo_subido(
         archivo
     )
 
-    orden = _bloquear_orden(
-        orden_trabajo
+    # ==================================================
+    # BLOQUEAR OT
+    # ==================================================
+
+    orden_bloqueada = (
+        _bloquear_orden(
+            orden_trabajo
+        )
     )
+
+    # ==================================================
+    # REGLAS FUNCIONALES
+    # ==================================================
+
+    _validar_gestion_documental(
+        orden_bloqueada
+    )
+
+    # ==================================================
+    # NORMALIZAR DATOS
+    # ==================================================
+
+    descripcion = (
+        _normalizar_descripcion(
+            descripcion
+        )
+    )
+
+    # ==================================================
+    # RESOLVER FECHA FUNCIONAL
+    # ==================================================
+
+    fecha_resuelta = (
+        _resolver_fecha_hora(
+            fecha_explicita=fecha_documento,
+        )
+    )
+
+    # ==================================================
+    # CREAR REGISTRO
+    # ==================================================
 
     registro = OrdenTrabajoArchivo(
-        orden_trabajo=orden,
+        orden_trabajo=orden_bloqueada,
         usuario=usuario,
         archivo=archivo,
-        descripcion=_normalizar_descripcion(
-            descripcion
-        ),
+        descripcion=descripcion,
+        fecha_documento=fecha_resuelta,
+        is_active=True,
+        fecha_retiro=None,
+        usuario_retiro=None,
+        motivo_retiro="",
     )
 
+    # ==================================================
+    # VALIDAR MODELO
+    # ==================================================
+
     registro.full_clean()
+
+    # ==================================================
+    # GUARDAR
+    # ==================================================
 
     registro.save()
 
@@ -208,102 +422,161 @@ def crear_archivo_ot(
 
 
 # ======================================================
-# ACTUALIZAR DESCRIPCIÓN
+# RETIRAR ARCHIVO
 # ======================================================
 
+
 @transaction.atomic
-def actualizar_archivo_ot(
+def retirar_archivo_ot(
     *,
     archivo_ot: OrdenTrabajoArchivo,
-    descripcion: str,
+    usuario: Usuario,
+    motivo: str,
+    fecha_retiro=None,
 ) -> OrdenTrabajoArchivo:
     """
-    Actualiza únicamente la descripción
-    de un archivo existente.
+    Retira lógicamente un archivo asociado
+    a una Orden de Trabajo.
 
-    El archivo físico y el usuario que realizó
-    la carga no se modifican mediante este service.
+    El retiro NO:
+
+    - elimina el registro de la base de datos;
+    - elimina físicamente el archivo del storage;
+    - reemplaza el documento original.
+
+    El retiro SÍ registra:
+
+    - is_active = False;
+    - fecha_retiro;
+    - usuario_retiro;
+    - motivo_retiro.
+
+    Esto permite conservar completamente
+    la trazabilidad documental.
     """
 
-    registro = _bloquear_archivo(
+    # ==================================================
+    # VALIDACIONES PREVIAS
+    # ==================================================
+
+    _validar_archivo_guardado(
         archivo_ot
     )
 
-    _bloquear_orden(
-        registro.orden_trabajo
+    _validar_usuario(
+        usuario
     )
 
-    registro.descripcion = (
-        _normalizar_descripcion(
-            descripcion
+    # ==================================================
+    # MOTIVO
+    # ==================================================
+
+    motivo = (
+        _normalizar_motivo(
+            motivo
         )
     )
 
-    registro.full_clean()
+    # ==================================================
+    # BLOQUEAR ARCHIVO
+    # ==================================================
 
-    registro.save(
-        update_fields=(
-            "descripcion",
-        ),
+    archivo_bloqueado = (
+        _bloquear_archivo(
+            archivo_ot
+        )
     )
 
-    return registro
+    # ==================================================
+    # BLOQUEAR OT
+    # ==================================================
 
-
-# ======================================================
-# ELIMINAR ARCHIVO
-# ======================================================
-
-@transaction.atomic
-def eliminar_archivo_ot(
-    *,
-    archivo_ot: OrdenTrabajoArchivo,
-    eliminar_archivo_fisico: bool = True,
-) -> tuple[int, dict[str, int]]:
-    """
-    Elimina un archivo asociado a una OT.
-
-    Si ``eliminar_archivo_fisico`` es True,
-    también elimina el archivo del storage.
-
-    Args:
-        archivo_ot:
-            Registro que debe eliminarse.
-
-        eliminar_archivo_fisico:
-            Indica si debe eliminarse el archivo
-            físico almacenado.
-
-    Returns:
-        tuple:
-            Resultado estándar de Django al eliminar.
-    """
-
-    registro = _bloquear_archivo(
-        archivo_ot
+    orden_bloqueada = (
+        _bloquear_orden(
+            archivo_bloqueado.orden_trabajo
+        )
     )
 
-    _bloquear_orden(
-        registro.orden_trabajo
+    # ==================================================
+    # REGLAS DE LA OT
+    # ==================================================
+
+    _validar_gestion_documental(
+        orden_bloqueada
     )
 
-    campo_archivo = registro.archivo
+    # ==================================================
+    # VALIDAR ESTADO ACTUAL
+    # ==================================================
 
-    resultado = registro.delete()
-
-    if (
-        eliminar_archivo_fisico
-        and campo_archivo
-    ):
-        campo_archivo.delete(
-            save=False,
+    if not archivo_bloqueado.is_active:
+        raise ValidationError(
+            _(
+                "El archivo ya fue retirado "
+                "anteriormente."
+            )
         )
 
-    return resultado
+    # ==================================================
+    # FECHA DEL RETIRO
+    # ==================================================
+
+    fecha_resuelta = (
+        _resolver_fecha_hora(
+            fecha_explicita=fecha_retiro,
+            fecha_existente=(
+                archivo_bloqueado.fecha_retiro
+            ),
+        )
+    )
+
+    # ==================================================
+    # APLICAR RETIRO
+    # ==================================================
+
+    archivo_bloqueado.is_active = False
+
+    archivo_bloqueado.fecha_retiro = (
+        fecha_resuelta
+    )
+
+    archivo_bloqueado.usuario_retiro = (
+        usuario
+    )
+
+    archivo_bloqueado.motivo_retiro = (
+        motivo
+    )
+
+    # ==================================================
+    # VALIDACIÓN DEL MODELO
+    # ==================================================
+
+    archivo_bloqueado.full_clean()
+
+    # ==================================================
+    # GUARDAR
+    # ==================================================
+
+    archivo_bloqueado.save(
+        update_fields=[
+            "is_active",
+            "fecha_retiro",
+            "usuario_retiro",
+            "motivo_retiro",
+            "updated_at",
+        ]
+    )
+
+    return archivo_bloqueado
 
 
-__all__ = (
-    "crear_archivo_ot",
-    "actualizar_archivo_ot",
-    "eliminar_archivo_ot",
-)
+# ======================================================
+# EXPORTS
+# ======================================================
+
+
+__all__ = [
+    "adjuntar_archivo_ot",
+    "retirar_archivo_ot",
+]

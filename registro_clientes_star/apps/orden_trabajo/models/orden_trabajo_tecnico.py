@@ -10,10 +10,14 @@ from .orden_trabajo import OrdenTrabajo
 
 class OrdenTrabajoTecnico(BaseModel):
     """
-    Representa la asignación de un técnico a una orden de trabajo.
+    Representa la asignación de un técnico
+    a una orden de trabajo.
 
-    Una orden puede tener varios técnicos asignados,
-    pero solamente uno puede marcarse como principal.
+    Una orden puede tener varios técnicos activos,
+    pero solamente uno puede ser el principal.
+
+    La asignación y desasignación se gestionan
+    mediante services.
     """
 
     # ======================================================
@@ -35,17 +39,73 @@ class OrdenTrabajoTecnico(BaseModel):
     )
 
     # ======================================================
-    # INFORMACIÓN GENERAL
+    # ASIGNACIÓN
     # ======================================================
 
     es_principal = models.BooleanField(
         default=False,
         verbose_name=_("Técnico principal"),
         help_text=_(
-            "Indica si el técnico es el responsable principal "
-            "de ejecutar la orden."
+            "Indica si el técnico es el responsable "
+            "principal de ejecutar la orden."
         ),
     )
+
+    fecha_asignacion = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("Fecha de asignación"),
+        help_text=_(
+            "Fecha y hora en que el técnico fue "
+            "asignado a la orden."
+        ),
+    )
+
+    usuario_asignacion = models.ForeignKey(
+        Usuario,
+        on_delete=models.PROTECT,
+        related_name="asignaciones_tecnicos_ot_registradas",
+        blank=True,
+        null=True,
+        editable=False,
+        verbose_name=_("Asignado por"),
+        help_text=_(
+            "Usuario que registró formalmente "
+            "la asignación del técnico."
+        ),
+    )
+
+    # ======================================================
+    # DESASIGNACIÓN
+    # ======================================================
+
+    fecha_desasignacion = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("Fecha de desasignación"),
+        help_text=_(
+            "Fecha y hora en que el técnico fue "
+            "desasignado de la orden."
+        ),
+    )
+
+    usuario_desasignacion = models.ForeignKey(
+        Usuario,
+        on_delete=models.PROTECT,
+        related_name="desasignaciones_tecnicos_ot_registradas",
+        blank=True,
+        null=True,
+        editable=False,
+        verbose_name=_("Desasignado por"),
+        help_text=_(
+            "Usuario que registró formalmente "
+            "la desasignación del técnico."
+        ),
+    )
+
+    # ======================================================
+    # OBSERVACIONES
+    # ======================================================
 
     observaciones = models.TextField(
         blank=True,
@@ -66,6 +126,7 @@ class OrdenTrabajoTecnico(BaseModel):
         verbose_name_plural = _("Técnicos asignados")
 
         ordering = (
+            "-is_active",
             "-es_principal",
             "tecnico",
         )
@@ -80,42 +141,138 @@ class OrdenTrabajoTecnico(BaseModel):
             ),
         ]
 
+        indexes = [
+            models.Index(
+                fields=[
+                    "orden_trabajo",
+                    "is_active",
+                ],
+                name="idx_ot_tec_activo",
+            ),
+        ]
+
     # ======================================================
     # VALIDACIONES
     # ======================================================
 
     def clean(self):
         """
-        Valida que una orden tenga como máximo
-        un técnico principal.
+        Valida la coherencia de la asignación.
+
+        Reglas:
+
+        - solamente puede existir un técnico principal activo;
+        - un técnico inactivo no puede ser principal;
+        - fecha y usuario de desasignación deben ser coherentes.
         """
 
         super().clean()
 
-        if not self.orden_trabajo_id or not self.es_principal:
-            return
+        errores = {}
 
-        existe_principal = (
-            OrdenTrabajoTecnico.objects
-            .filter(
-                orden_trabajo_id=self.orden_trabajo_id,
-                es_principal=True,
-            )
-            .exclude(
-                pk=self.pk,
-            )
-            .exists()
-        )
+        # ==================================================
+        # TÉCNICO PRINCIPAL
+        # ==================================================
 
-        if existe_principal:
+        if (
+            self.es_principal
+            and not self.is_active
+        ):
+            errores["es_principal"] = _(
+                "Un técnico desasignado no puede permanecer "
+                "como técnico principal."
+            )
+
+        if (
+            self.orden_trabajo_id
+            and self.es_principal
+            and self.is_active
+        ):
+            existe_principal = (
+                OrdenTrabajoTecnico.objects
+                .filter(
+                    orden_trabajo_id=(
+                        self.orden_trabajo_id
+                    ),
+                    es_principal=True,
+                    is_active=True,
+                )
+                .exclude(
+                    pk=self.pk,
+                )
+                .exists()
+            )
+
+            if existe_principal:
+                errores["es_principal"] = _(
+                    "La orden de trabajo ya tiene "
+                    "un técnico principal activo."
+                )
+
+        # ==================================================
+        # ASIGNACIÓN
+        # ==================================================
+
+        if (
+            self.usuario_asignacion_id
+            and not self.fecha_asignacion
+        ):
+            errores["fecha_asignacion"] = _(
+                "Debe existir una fecha de asignación "
+                "cuando existe un usuario de asignación."
+            )
+
+        # ==================================================
+        # DESASIGNACIÓN
+        # ==================================================
+
+        if (
+            self.fecha_desasignacion
+            and not self.usuario_desasignacion_id
+        ):
+            errores["usuario_desasignacion"] = _(
+                "Debe registrarse quién realizó "
+                "la desasignación."
+            )
+
+        if (
+            self.usuario_desasignacion_id
+            and not self.fecha_desasignacion
+        ):
+            errores["fecha_desasignacion"] = _(
+                "Debe existir una fecha de desasignación."
+            )
+
+        if (
+            self.fecha_asignacion
+            and self.fecha_desasignacion
+            and self.fecha_desasignacion
+            < self.fecha_asignacion
+        ):
+            errores["fecha_desasignacion"] = _(
+                "La fecha de desasignación no puede ser "
+                "anterior a la fecha de asignación."
+            )
+
+        if errores:
             raise ValidationError(
-                {
-                    "es_principal": _(
-                        "La orden de trabajo ya tiene "
-                        "un técnico principal."
-                    )
-                }
+                errores
             )
+
+    # ======================================================
+    # PROPIEDADES
+    # ======================================================
+
+    @property
+    def esta_asignado(self) -> bool:
+        """
+        Indica si el técnico se encuentra
+        actualmente asignado.
+        """
+
+        return bool(
+            self.is_active
+        )
 
     # ======================================================
     # REPRESENTACIÓN

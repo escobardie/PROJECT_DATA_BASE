@@ -1,0 +1,32 @@
+desde ot no se puede generar una instalacion si no se asigana un tecnico y seguimiento de ot, se debe de generar un alerta para completarlo.
+
+queda por importar dentro de instalacion, el tecnico asignado desde la ot
+
+idea: cada sucursal tiene que tenes una lista de instalaciondes o dispositivos instalados.
+
+adecuar presupuesto telecom, mismo enfoque que proyecto. * SOLO CUANDO PERFECCIONEMOS BLOQUE PROYECTO.*
+
+
+agregar instalacion de dispositivos, desde interface de sucursal, solo para perfil superusuario / tecnico.
+cada sucursal debe tener su lista de dispositivos instalado, con sus detalles.
+
+
+### PROYECTO ###
+
+DENTRO DE DETALLES DE PROYECTO, LO ITEMS YA DEBEN DE CARGAR SUS VALORES.
+CARGA DE dispositivos MAS DINAMICO.
+
+FECHAS DE BLOQUE: 
+    PLANIFICACION: GESTION DE PLANIFICACION DEL PROYECTO
+    EJECUCION: LUEGO DE LA FECHA DE ACEPTACION.
+
+Y SI EL PROYECTO ES UNA DESINSTALACION? COMO GESTIONAR ESO? 
+
+PROYECTO DEBE TENER CARGA DE ARCHIVOS DE IGUAL FORMA QUE OT
+
+### PROYECTO ###
+
+
+
+### OT ###
+FECHA DE PLANIFICACION PUEDE SER ESTABLECIDA SIN RESTRICCIONES DE FECHAS? 

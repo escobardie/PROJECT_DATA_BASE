@@ -1,5 +1,108 @@
 {% extends "admin/change_form.html" %}
+
 {% load i18n %}
+
+
+{# ====================================================== #}
+{# JAVASCRIPT                                             #}
+{# ====================================================== #}
+
+{% block extrahead %}
+
+    {{ block.super }}
+
+    <script>
+        /**
+         * Copia la fecha/hora actualmente escrita
+         * en el formulario principal del Django Admin
+         * hacia el formulario de una acción personalizada.
+         *
+         * Soporta:
+         *
+         * 1. DateTimeField simple:
+         *
+         *      id_fecha_inicio
+         *
+         * 2. AdminSplitDateTime:
+         *
+         *      id_fecha_inicio_0
+         *      id_fecha_inicio_1
+         *
+         * Esto permite ejecutar una acción sin guardar
+         * previamente el formulario principal.
+         */
+        function copiarFechaAdmin(
+            formulario,
+            nombreCampo
+        ) {
+
+            // =================================================
+            // CAMPO SIMPLE
+            // =================================================
+
+            const campoSimple = document.getElementById(
+                `id_${nombreCampo}`
+            );
+
+            const destinoSimple = formulario.querySelector(
+                `[name="${nombreCampo}"]`
+            );
+
+            if (
+                campoSimple
+                && destinoSimple
+            ) {
+                destinoSimple.value = campoSimple.value;
+            }
+
+
+            // =================================================
+            // DATETIME DIVIDIDO - FECHA
+            // =================================================
+
+            const campoFecha = document.getElementById(
+                `id_${nombreCampo}_0`
+            );
+
+            const destinoFecha = formulario.querySelector(
+                `[name="${nombreCampo}_0"]`
+            );
+
+            if (
+                campoFecha
+                && destinoFecha
+            ) {
+                destinoFecha.value = campoFecha.value;
+            }
+
+
+            // =================================================
+            // DATETIME DIVIDIDO - HORA
+            // =================================================
+
+            const campoHora = document.getElementById(
+                `id_${nombreCampo}_1`
+            );
+
+            const destinoHora = formulario.querySelector(
+                `[name="${nombreCampo}_1"]`
+            );
+
+            if (
+                campoHora
+                && destinoHora
+            ) {
+                destinoHora.value = campoHora.value;
+            }
+        }
+    </script>
+
+{% endblock %}
+
+
+{# ====================================================== #}
+{# ACCIONES DE LA ORDEN DE TRABAJO                        #}
+{# ====================================================== #}
 
 {% block object-tools-items %}
 
@@ -7,185 +110,611 @@
 
     {% if original %}
 
+
+        {# ================================================== #}
+        {# GESTIONAR TÉCNICOS                                 #}
+        {# ================================================== #}
+
+        {% if puede_gestionar_tecnicos_ot %}
+
+            <li>
+                <a
+                    href="{% url 'admin:orden_trabajo_ordentrabajo_gestionar_tecnicos' original.pk %}"
+                    class="viewsitelink"
+                >
+                    {% translate "Gestionar técnicos" %}
+                </a>
+            </li>
+
+        {% endif %}
+
+        {# ================================================== #}
+        {# SEGUIMIENTOS                                       #}
+        {# ================================================== #}
+
+        {% if puede_registrar_seguimiento_ot %}
+
+            <li>
+                <a
+                    href="{% url 'admin:orden_trabajo_ordentrabajo_gestionar_seguimientos' original.pk %}"
+                    class="viewsitelink"
+                >
+                    {% translate "Registrar seguimiento" %}
+                </a>
+            </li>
+
+        {% endif %}
+
+        {# ================================================== #}
+        {# ARCHIVOS                                           #}
+        {# ================================================== #}
+
+        {% if puede_ver_archivos_ot %}
+
+            <li>
+
+                <a
+                    href="{% url 'admin:orden_trabajo_ordentrabajo_gestionar_archivos' original.pk %}"
+                    class="viewsitelink"
+                >
+                    {% translate "Gestionar archivos" %}
+                </a>
+
+            </li>
+
+        {% endif %}
+
+        {# ================================================== #}
+        {# REGISTRAR RECEPCIÓN                                #}
+        {# ================================================== #}
+
         {% if puede_registrar_recepcion_ot %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:orden_trabajo_ordentrabajo_registrar_recepcion' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_recepcion_solicitud'
+                        );
+                    "
                 >
+
                     {% csrf_token %}
-                    <button type="submit" class="button">
-                        {% trans "Registrar recepción" %}
+
+                    <input
+                        type="hidden"
+                        name="fecha_recepcion_solicitud"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_recepcion_solicitud_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_recepcion_solicitud_1"
+                        value=""
+                    >
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Registrar recepción" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
+
+        {# ================================================== #}
+        {# PROGRAMAR OT                                       #}
+        {# ================================================== #}
+
         {% if puede_programar_ot %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:orden_trabajo_ordentrabajo_programar' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_programada'
+                        );
+                    "
                 >
+
                     {% csrf_token %}
-                    <button type="submit" class="button">
-                        {% trans "Programar OT" %}
+
+                    <input
+                        type="hidden"
+                        name="fecha_programada"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_programada_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_programada_1"
+                        value=""
+                    >
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Programar OT" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
+
+        {# ================================================== #}
+        {# REGISTRAR ENVÍO                                    #}
+        {# ================================================== #}
+
         {% if puede_registrar_envio_ot %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:orden_trabajo_ordentrabajo_registrar_envio' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_envio_cliente'
+                        );
+                    "
                 >
+
                     {% csrf_token %}
-                    <button type="submit" class="button">
-                        {% trans "Registrar envío" %}
+
+                    <input
+                        type="hidden"
+                        name="fecha_envio_cliente"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_envio_cliente_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_envio_cliente_1"
+                        value=""
+                    >
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Registrar envío" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
+
+        {# ================================================== #}
+        {# REGISTRAR ACEPTACIÓN                               #}
+        {# ================================================== #}
+
         {% if puede_registrar_aceptacion_ot %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:orden_trabajo_ordentrabajo_aceptar' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_aceptacion'
+                        );
+                    "
                 >
+
                     {% csrf_token %}
-                    <button type="submit" class="button">
-                        {% trans "Registrar aceptación" %}
+
+                    <input
+                        type="hidden"
+                        name="fecha_aceptacion"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_aceptacion_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_aceptacion_1"
+                        value=""
+                    >
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Registrar aceptación" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
+
+        {# ================================================== #}
+        {# REGISTRAR RECHAZO                                  #}
+        {# ================================================== #}
+
         {% if puede_registrar_rechazo_ot %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:orden_trabajo_ordentrabajo_rechazar' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_aceptacion'
+                        );
+                    "
                 >
+
                     {% csrf_token %}
-                    <button type="submit" class="button">
-                        {% trans "Registrar rechazo" %}
+
+                    <input
+                        type="hidden"
+                        name="fecha_aceptacion"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_aceptacion_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_aceptacion_1"
+                        value=""
+                    >
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Registrar rechazo" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
+
+        {# ================================================== #}
+        {# INICIAR OT                                         #}
+        {# ================================================== #}
+
         {% if puede_iniciar_ot %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:orden_trabajo_ordentrabajo_iniciar' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_inicio'
+                        );
+                    "
                 >
+
                     {% csrf_token %}
-                    <button type="submit" class="button">
-                        {% trans "Iniciar OT" %}
+
+                    <input
+                        type="hidden"
+                        name="fecha_inicio"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_inicio_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_inicio_1"
+                        value=""
+                    >
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Iniciar OT" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
+
+        {# ================================================== #}
+        {# PAUSAR OT                                          #}
+        {# ================================================== #}
+
         {% if puede_pausar_ot %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:orden_trabajo_ordentrabajo_pausar' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
                 >
+
                     {% csrf_token %}
-                    <button type="submit" class="button">
-                        {% trans "Pausar" %}
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Pausar" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
+
+        {# ================================================== #}
+        {# REANUDAR OT                                        #}
+        {# ================================================== #}
+
         {% if puede_reanudar_ot %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:orden_trabajo_ordentrabajo_reanudar' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
                 >
+
                     {% csrf_token %}
-                    <button type="submit" class="button">
-                        {% trans "Reanudar" %}
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Reanudar" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
+
+        {# ================================================== #}
+        {# GENERAR INSTALACIÓN                                #}
+        {# ================================================== #}
+
         {% if puede_generar_instalacion_ot %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:orden_trabajo_ordentrabajo_generar_instalacion' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
                 >
+
                     {% csrf_token %}
-                    <button type="submit" class="button">
-                        {% trans "Generar instalación" %}
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Generar instalación" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
+
+        {# ================================================== #}
+        {# FINALIZAR OT                                       #}
+        {# ================================================== #}
+
         {% if puede_finalizar_ot %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:orden_trabajo_ordentrabajo_finalizar' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_finalizacion'
+                        );
+                    "
                 >
+
                     {% csrf_token %}
-                    <button type="submit" class="button">
-                        {% trans "Finalizar OT" %}
+
+                    <input
+                        type="hidden"
+                        name="fecha_finalizacion"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_finalizacion_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_finalizacion_1"
+                        value=""
+                    >
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Finalizar OT" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
+
+        {# ================================================== #}
+        {# REGISTRAR FACTURACIÓN                              #}
+        {# ================================================== #}
+
         {% if puede_facturar_ot %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:orden_trabajo_ordentrabajo_facturar' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_facturacion'
+                        );
+                    "
                 >
+
                     {% csrf_token %}
-                    <button type="submit" class="button">
-                        {% trans "Registrar facturación" %}
+
+                    <input
+                        type="hidden"
+                        name="fecha_facturacion"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_facturacion_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_facturacion_1"
+                        value=""
+                    >
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Registrar facturación" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
 
+
+        {# ================================================== #}
+        {# REGISTRAR COBRO                                    #}
+        {# ================================================== #}
+
         {% if puede_cobrar_ot %}
+
             <li>
                 <form
                     method="post"
                     action="{% url 'admin:orden_trabajo_ordentrabajo_cobrar' original.pk %}"
-                    style="display:inline;"
+                    style="display: inline;"
+                    onsubmit="
+                        copiarFechaAdmin(
+                            this,
+                            'fecha_cobro'
+                        );
+                    "
                 >
+
                     {% csrf_token %}
-                    <button type="submit" class="button">
-                        {% trans "Registrar cobro" %}
+
+                    <input
+                        type="hidden"
+                        name="fecha_cobro"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_cobro_0"
+                        value=""
+                    >
+
+                    <input
+                        type="hidden"
+                        name="fecha_cobro_1"
+                        value=""
+                    >
+
+                    <button
+                        type="submit"
+                        class="button"
+                    >
+                        {% translate "Registrar cobro" %}
                     </button>
+
                 </form>
             </li>
+
         {% endif %}
+
 
     {% endif %}
 

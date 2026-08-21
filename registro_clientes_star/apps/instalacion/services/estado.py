@@ -12,6 +12,21 @@ Centraliza:
 
 Las operaciones se ejecutan dentro de transacciones
 atómicas y respetan las validaciones del modelo.
+
+Regla general para fechas:
+
+1. fecha proporcionada explícitamente;
+2. fecha previamente cargada;
+3. fecha actual del sistema.
+
+Para DateTimeField se utiliza timezone.now().
+Para DateField se utiliza timezone.localdate().
+
+La fecha representa cuándo ocurrió el evento.
+
+Cuando existe un campo usuario_*,
+ese campo representa quién registró formalmente
+el hito dentro del sistema.
 """
 
 from datetime import date, datetime, timedelta
@@ -27,6 +42,7 @@ from apps.common.choices import (
 )
 
 from apps.instalacion.models import Instalacion
+from apps.usuarios.models import Usuario
 
 
 # ======================================================
@@ -79,6 +95,26 @@ def _validar_instalacion_guardada(
         )
 
 
+def _validar_usuario(
+    usuario: Usuario | None,
+) -> None:
+    """
+    Valida el usuario que registra formalmente
+    una operación.
+    """
+
+    if usuario is None:
+        raise ValueError(
+            "Debe proporcionar el usuario que "
+            "registra la operación."
+        )
+
+    if not usuario.pk:
+        raise ValueError(
+            "El usuario debe estar guardado."
+        )
+
+
 def _bloquear_instalacion(
     instalacion: Instalacion,
 ) -> Instalacion:
@@ -96,6 +132,7 @@ def _bloquear_instalacion(
         .select_for_update()
         .select_related(
             "orden_trabajo",
+            "usuario_conformidad",
         )
         .get(
             pk=instalacion.pk,
@@ -137,16 +174,44 @@ def _validar_transicion(
         )
 
 
+# ======================================================
+# RESOLUCIÓN DE FECHAS
+# ======================================================
+
+def _resolver_fecha(
+    *,
+    fecha_nueva: date | None,
+    fecha_existente: date | None,
+) -> date:
+    """
+    Resuelve un DateField.
+
+    Prioridad:
+
+    1. fecha proporcionada explícitamente;
+    2. fecha previamente cargada;
+    3. fecha actual en la zona horaria activa.
+    """
+
+    return (
+        fecha_nueva
+        or fecha_existente
+        or timezone.localdate()
+    )
+
+
 def _resolver_fecha_hora(
     *,
     fecha_nueva: datetime | None,
     fecha_existente: datetime | None,
 ) -> datetime:
     """
+    Resuelve un DateTimeField.
+
     Prioridad:
 
-    1. fecha proporcionada;
-    2. fecha existente;
+    1. fecha proporcionada explícitamente;
+    2. fecha previamente cargada;
     3. fecha/hora actual.
     """
 
@@ -156,6 +221,10 @@ def _resolver_fecha_hora(
         or timezone.now()
     )
 
+
+# ======================================================
+# GUARDADO
+# ======================================================
 
 def _validar_y_guardar(
     instalacion: Instalacion,
@@ -175,6 +244,11 @@ def _validar_y_guardar(
 
     return instalacion
 
+
+# ======================================================
+# VALIDACIÓN DE DISPOSITIVOS
+# ======================================================
+
 def _validar_dispositivos_para_finalizacion(
     instalacion: Instalacion,
 ) -> None:
@@ -184,18 +258,22 @@ def _validar_dispositivos_para_finalizacion(
     la instalación.
 
     Reglas:
+
     - debe existir al menos un dispositivo;
     - todos deben tener ubicación;
     - todos deben tener un estado técnico definido.
 
     Los estados válidos son los definidos por
-    EstadoDispositivoInstaladoChoices:
-    INSTALADO, RETIRADO, REEMPLAZADO y FUERA_SERVICIO.
+    EstadoDispositivoInstaladoChoices.
     """
 
     dispositivos = list(
         instalacion.dispositivos.all()
     )
+
+    # ==================================================
+    # EXISTENCIA
+    # ==================================================
 
     if not dispositivos:
         raise ValidationError(
@@ -208,10 +286,17 @@ def _validar_dispositivos_para_finalizacion(
             }
         )
 
+    # ==================================================
+    # UBICACIÓN
+    # ==================================================
+
     sin_ubicacion = [
         dispositivo
         for dispositivo in dispositivos
-        if not (dispositivo.ubicacion or "").strip()
+        if not (
+            dispositivo.ubicacion
+            or ""
+        ).strip()
     ]
 
     if sin_ubicacion:
@@ -233,6 +318,10 @@ def _validar_dispositivos_para_finalizacion(
                 }
             }
         )
+
+    # ==================================================
+    # ESTADOS
+    # ==================================================
 
     estados_validos = {
         choice.value
@@ -264,6 +353,12 @@ def _validar_dispositivos_para_finalizacion(
                 }
             }
         )
+
+
+# ======================================================
+# VALIDACIÓN DE TÉCNICOS
+# ======================================================
+
 def _validar_tecnicos_para_finalizacion(
     instalacion: Instalacion,
 ) -> None:
@@ -277,7 +372,10 @@ def _validar_tecnicos_para_finalizacion(
     - debe existir exactamente un responsable principal.
     """
 
-    tecnicos = instalacion.tecnicos.all()
+    tecnicos = (
+        instalacion.tecnicos
+        .all()
+    )
 
     if not tecnicos.exists():
         raise ValidationError(
@@ -289,9 +387,13 @@ def _validar_tecnicos_para_finalizacion(
             }
         )
 
-    cantidad_responsables = tecnicos.filter(
-        es_responsable=True,
-    ).count()
+    cantidad_responsables = (
+        tecnicos
+        .filter(
+            es_responsable=True,
+        )
+        .count()
+    )
 
     if cantidad_responsables == 0:
         raise ValidationError(
@@ -313,6 +415,7 @@ def _validar_tecnicos_para_finalizacion(
             }
         )
 
+
 # ======================================================
 # PROGRAMACIÓN
 # ======================================================
@@ -326,25 +429,25 @@ def programar_instalacion(
 ) -> Instalacion:
     """
     Programa una instalación existente.
+
+    Prioridad de fecha:
+
+    1. fecha indicada;
+    2. fecha previamente guardada;
+    3. fecha actual.
     """
+
+    # ==================================================
+    # BLOQUEAR INSTALACIÓN
+    # ==================================================
 
     objeto = _bloquear_instalacion(
         instalacion
     )
 
-    fecha = (
-        fecha_programada
-        or objeto.fecha_programada
-    )
-
-    if fecha is None:
-        raise ValidationError(
-            {
-                "fecha_programada": _(
-                    "Debe indicar una fecha programada."
-                )
-            }
-        )
+    # ==================================================
+    # VALIDAR TRANSICIÓN
+    # ==================================================
 
     _validar_transicion(
         estado_actual=objeto.estado,
@@ -353,27 +456,58 @@ def programar_instalacion(
         ),
     )
 
-    objeto.fecha_programada = fecha
+    # ==================================================
+    # RESOLVER FECHA
+    # ==================================================
+
+    objeto.fecha_programada = (
+        _resolver_fecha(
+            fecha_nueva=fecha_programada,
+            fecha_existente=(
+                objeto.fecha_programada
+            ),
+        )
+    )
+
+    # ==================================================
+    # CAMPOS MODIFICADOS
+    # ==================================================
 
     campos = [
         "fecha_programada",
         "estado",
     ]
 
+    # ==================================================
+    # DURACIÓN
+    # ==================================================
+
     if duracion_estimada is not None:
-        objeto.duracion_estimada = duracion_estimada
+        objeto.duracion_estimada = (
+            duracion_estimada
+        )
 
         campos.append(
             "duracion_estimada"
         )
 
+    # ==================================================
+    # ESTADO
+    # ==================================================
+
     objeto.estado = (
         EstadoInstalacionChoices.PROGRAMADA
     )
 
+    # ==================================================
+    # VALIDAR Y GUARDAR
+    # ==================================================
+
     return _validar_y_guardar(
         objeto,
-        campos=tuple(campos),
+        campos=tuple(
+            campos
+        ),
     )
 
 
@@ -389,11 +523,25 @@ def iniciar_instalacion(
 ) -> Instalacion:
     """
     Registra el inicio real de una instalación.
+
+    Prioridad:
+
+    1. fecha indicada;
+    2. fecha previamente guardada;
+    3. fecha/hora actual.
     """
+
+    # ==================================================
+    # BLOQUEAR INSTALACIÓN
+    # ==================================================
 
     objeto = _bloquear_instalacion(
         instalacion
     )
+
+    # ==================================================
+    # VALIDAR TRANSICIÓN
+    # ==================================================
 
     _validar_transicion(
         estado_actual=objeto.estado,
@@ -402,16 +550,30 @@ def iniciar_instalacion(
         ),
     )
 
+    # ==================================================
+    # RESOLVER FECHA
+    # ==================================================
+
     objeto.fecha_inicio = (
         _resolver_fecha_hora(
             fecha_nueva=fecha,
-            fecha_existente=objeto.fecha_inicio,
+            fecha_existente=(
+                objeto.fecha_inicio
+            ),
         )
     )
+
+    # ==================================================
+    # ESTADO
+    # ==================================================
 
     objeto.estado = (
         EstadoInstalacionChoices.EN_PROCESO
     )
+
+    # ==================================================
+    # VALIDAR Y GUARDAR
+    # ==================================================
 
     return _validar_y_guardar(
         objeto,
@@ -434,19 +596,56 @@ def finalizar_instalacion(
 ) -> Instalacion:
     """
     Finaliza una instalación en ejecución.
+
+    Prioridad:
+
+    1. fecha indicada;
+    2. fecha previamente guardada;
+    3. fecha/hora actual.
+
+    Antes de finalizar:
+
+    - debe existir al menos un dispositivo;
+    - cada dispositivo debe tener ubicación;
+    - cada dispositivo debe tener un estado válido;
+    - debe existir al menos un técnico;
+    - debe existir exactamente un responsable.
     """
+
+    # ==================================================
+    # BLOQUEAR INSTALACIÓN
+    # ==================================================
 
     objeto = _bloquear_instalacion(
         instalacion
     )
 
-    # Validaciones existentes...
+    # ==================================================
+    # VALIDAR TRANSICIÓN
+    # ==================================================
+
     _validar_transicion(
         estado_actual=objeto.estado,
         nuevo_estado=(
             EstadoInstalacionChoices.FINALIZADA
         ),
     )
+
+    # ==================================================
+    # VALIDACIONES TÉCNICAS
+    # ==================================================
+
+    _validar_dispositivos_para_finalizacion(
+        objeto
+    )
+
+    _validar_tecnicos_para_finalizacion(
+        objeto
+    )
+
+    # ==================================================
+    # RESOLVER FECHA
+    # ==================================================
 
     objeto.fecha_finalizacion = (
         _resolver_fecha_hora(
@@ -457,17 +656,17 @@ def finalizar_instalacion(
         )
     )
 
+    # ==================================================
+    # ESTADO
+    # ==================================================
+
     objeto.estado = (
         EstadoInstalacionChoices.FINALIZADA
     )
 
-    # Nueva validación técnica
-    _validar_dispositivos_para_finalizacion(
-        objeto # instalacion
-    )
-    _validar_tecnicos_para_finalizacion(
-        objeto
-    )
+    # ==================================================
+    # VALIDAR Y GUARDAR
+    # ==================================================
 
     return _validar_y_guardar(
         objeto,
@@ -490,11 +689,23 @@ def cancelar_instalacion(
     """
     Cancela una instalación que todavía
     no fue finalizada.
+
+    Actualmente no existe una fecha específica
+    de cancelación, por lo que esta operación
+    únicamente modifica el estado.
     """
+
+    # ==================================================
+    # BLOQUEAR INSTALACIÓN
+    # ==================================================
 
     objeto = _bloquear_instalacion(
         instalacion
     )
+
+    # ==================================================
+    # VALIDAR TRANSICIÓN
+    # ==================================================
 
     _validar_transicion(
         estado_actual=objeto.estado,
@@ -503,9 +714,17 @@ def cancelar_instalacion(
         ),
     )
 
+    # ==================================================
+    # ESTADO
+    # ==================================================
+
     objeto.estado = (
         EstadoInstalacionChoices.CANCELADA
     )
+
+    # ==================================================
+    # VALIDAR Y GUARDAR
+    # ==================================================
 
     return _validar_y_guardar(
         objeto,
@@ -523,19 +742,50 @@ def cancelar_instalacion(
 def registrar_conformidad_instalacion(
     *,
     instalacion: Instalacion,
+    usuario: Usuario,
     recibido_por: str,
     fecha: datetime | None = None,
     observaciones: str = "",
 ) -> Instalacion:
     """
-    Registra la conformidad del cliente.
+    Registra formalmente la conformidad del cliente.
 
     La instalación debe estar finalizada.
+
+    Prioridad de fecha:
+
+    1. fecha indicada;
+    2. fecha previamente guardada;
+    3. fecha/hora actual.
+
+    fecha_conformidad indica cuándo ocurrió.
+
+    usuario_conformidad indica quién registró
+    formalmente el hito.
+
+    La conformidad continúa siendo un hito posterior
+    y no condiciona la finalización de la instalación.
     """
+
+    # ==================================================
+    # VALIDAR USUARIO
+    # ==================================================
+
+    _validar_usuario(
+        usuario
+    )
+
+    # ==================================================
+    # BLOQUEAR INSTALACIÓN
+    # ==================================================
 
     objeto = _bloquear_instalacion(
         instalacion
     )
+
+    # ==================================================
+    # VALIDAR FINALIZACIÓN
+    # ==================================================
 
     if not objeto.finalizada:
         raise ValidationError(
@@ -546,6 +796,24 @@ def registrar_conformidad_instalacion(
                 )
             }
         )
+
+    # ==================================================
+    # VALIDAR HITO PREVIO
+    # ==================================================
+
+    if objeto.usuario_conformidad_id:
+        raise ValidationError(
+            {
+                "usuario_conformidad": _(
+                    "La conformidad de esta instalación "
+                    "ya fue registrada."
+                )
+            }
+        )
+
+    # ==================================================
+    # VALIDAR RECIBIDO POR
+    # ==================================================
 
     nombre = (
         recibido_por
@@ -562,7 +830,17 @@ def registrar_conformidad_instalacion(
             }
         )
 
-    objeto.recibido_por = nombre
+    # ==================================================
+    # REGISTRAR PERSONA
+    # ==================================================
+
+    objeto.recibido_por = (
+        nombre
+    )
+
+    # ==================================================
+    # RESOLVER FECHA
+    # ==================================================
 
     objeto.fecha_conformidad = (
         _resolver_fecha_hora(
@@ -573,20 +851,41 @@ def registrar_conformidad_instalacion(
         )
     )
 
+    # ==================================================
+    # REGISTRAR USUARIO
+    # ==================================================
+
+    objeto.usuario_conformidad = (
+        usuario
+    )
+
+    # ==================================================
+    # OBSERVACIONES
+    # ==================================================
+
     objeto.observaciones_conformidad = (
         observaciones
         or ""
     ).strip()
+
+    # ==================================================
+    # VALIDAR Y GUARDAR
+    # ==================================================
 
     return _validar_y_guardar(
         objeto,
         campos=(
             "recibido_por",
             "fecha_conformidad",
+            "usuario_conformidad",
             "observaciones_conformidad",
         ),
     )
 
+
+# ======================================================
+# EXPORTACIONES
+# ======================================================
 
 __all__ = (
     "programar_instalacion",

@@ -1,0 +1,555 @@
+{% extends "admin/base_site.html" %}
+
+{% load i18n %}
+
+
+{% block extrahead %}
+
+    {{ block.super }}
+    {{ media }}
+
+    <style>
+
+        .gestion-seguimientos {
+            max-width: 1200px;
+        }
+
+        /* ==================================================
+           RESUMEN OT
+           ================================================== */
+
+        .ot-resumen {
+            margin-bottom: 24px;
+        }
+
+        .ot-resumen-header {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--hairline-color);
+        }
+
+        .ot-resumen-header h2 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .ot-resumen-body {
+            display: grid;
+            grid-template-columns:
+                repeat(3, minmax(180px, 1fr));
+
+            gap: 16px;
+            padding: 16px 18px;
+        }
+
+        .ot-resumen-label {
+            display: block;
+            margin-bottom: 4px;
+
+            color: var(--body-quiet-color);
+
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .ot-resumen-value {
+            font-weight: 600;
+        }
+
+
+        /* ==================================================
+           FORMULARIO
+           ================================================== */
+
+        .seguimiento-form {
+            margin-bottom: 28px;
+        }
+
+        .seguimiento-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--hairline-color);
+        }
+
+        .seguimiento-header h2 {
+            margin: 0 0 6px;
+        }
+
+        .seguimiento-header p {
+            margin: 0;
+            color: var(--body-quiet-color);
+        }
+
+        .seguimiento-body {
+            padding: 20px;
+        }
+
+        .seguimiento-field {
+            margin-bottom: 20px;
+        }
+
+        .seguimiento-field > label {
+            display: block;
+            margin-bottom: 7px;
+            font-weight: 600;
+        }
+
+        .seguimiento-field textarea {
+            box-sizing: border-box;
+            width: 100%;
+            max-width: 850px;
+            min-height: 130px;
+            resize: vertical;
+        }
+
+        .fecha-seguimiento-controles {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .fecha-seguimiento-controles input[type="date"] {
+            min-width: 165px;
+        }
+
+        .fecha-seguimiento-controles input[type="time"] {
+            min-width: 130px;
+        }
+
+        .seguimiento-help {
+            margin-top: 6px;
+            color: var(--body-quiet-color);
+            font-size: 12px;
+        }
+
+        .seguimiento-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+
+            padding-top: 18px;
+            border-top: 1px solid var(--hairline-color);
+        }
+
+
+        /* ==================================================
+           HISTORIAL
+           ================================================== */
+
+        .historial-header {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--hairline-color);
+        }
+
+        .historial-header h2 {
+            margin: 0 0 5px;
+        }
+
+        .historial-header p {
+            margin: 0;
+            color: var(--body-quiet-color);
+            font-size: 12px;
+        }
+
+        .seguimiento-item {
+            padding: 18px;
+
+            border-bottom:
+                1px solid var(--hairline-color);
+        }
+
+        .seguimiento-item:last-child {
+            border-bottom: 0;
+        }
+
+        .seguimiento-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+
+            margin-bottom: 10px;
+
+            color: var(--body-quiet-color);
+            font-size: 12px;
+        }
+
+        .seguimiento-fecha {
+            font-weight: 600;
+            color: var(--body-fg);
+        }
+
+        .seguimiento-comentario {
+            max-width: 950px;
+            line-height: 1.6;
+        }
+
+        .sin-seguimientos {
+            padding: 20px;
+            color: var(--body-quiet-color);
+        }
+
+
+        /* ==================================================
+           RESPONSIVE
+           ================================================== */
+
+        @media (max-width: 800px) {
+
+            .ot-resumen-body {
+                grid-template-columns: 1fr;
+            }
+
+            .seguimiento-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .seguimiento-actions input,
+            .seguimiento-actions a {
+                box-sizing: border-box;
+                width: 100%;
+                text-align: center;
+            }
+
+        }
+
+    </style>
+
+{% endblock %}
+
+
+{% block breadcrumbs %}
+
+<div class="breadcrumbs">
+
+    <a href="{% url 'admin:index' %}">
+        {% translate "Inicio" %}
+    </a>
+
+    &rsaquo;
+
+    <a href="{% url 'admin:orden_trabajo_ordentrabajo_changelist' %}">
+        {% translate "Órdenes de trabajo" %}
+    </a>
+
+    &rsaquo;
+
+    <a href="{{ url_volver }}">
+        {{ orden_trabajo.codigo }}
+    </a>
+
+    &rsaquo;
+
+    {% translate "Seguimientos" %}
+
+</div>
+
+{% endblock %}
+
+
+{% block content %}
+
+<div
+    id="content-main"
+    class="gestion-seguimientos"
+>
+
+
+    {# ================================================== #}
+    {# RESUMEN OT                                         #}
+    {# ================================================== #}
+
+    <div class="module ot-resumen">
+
+        <div class="ot-resumen-header">
+
+            <h2>
+                {{ orden_trabajo.codigo }}
+                —
+                {{ orden_trabajo.titulo }}
+            </h2>
+
+        </div>
+
+        <div class="ot-resumen-body">
+
+            <div>
+
+                <span class="ot-resumen-label">
+                    {% translate "Estado" %}
+                </span>
+
+                <span class="ot-resumen-value">
+                    {{ orden_trabajo.get_estado_display }}
+                </span>
+
+            </div>
+
+
+            <div>
+
+                <span class="ot-resumen-label">
+                    {% translate "Prioridad" %}
+                </span>
+
+                <span class="ot-resumen-value">
+                    {{ orden_trabajo.get_prioridad_display }}
+                </span>
+
+            </div>
+
+
+            <div>
+
+                <span class="ot-resumen-label">
+                    {% translate "Tipo" %}
+                </span>
+
+                <span class="ot-resumen-value">
+                    {{ orden_trabajo.get_tipo_display }}
+                </span>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    {# ================================================== #}
+    {# REGISTRAR SEGUIMIENTO                              #}
+    {# ================================================== #}
+
+    <form
+        method="post"
+        novalidate
+        class="seguimiento-form"
+    >
+
+        {% csrf_token %}
+
+        <div class="module">
+
+            <div class="seguimiento-header">
+
+                <h2>
+                    {% translate "Registrar seguimiento" %}
+                </h2>
+
+                <p>
+                    {% translate "Registre una novedad, avance o situación relevante de la orden de trabajo." %}
+                </p>
+
+            </div>
+
+
+            <div class="seguimiento-body">
+
+
+                {% if form.non_field_errors %}
+
+                    <ul class="errorlist nonfield">
+
+                        {% for error in form.non_field_errors %}
+
+                            <li>
+                                {{ error }}
+                            </li>
+
+                        {% endfor %}
+
+                    </ul>
+
+                {% endif %}
+
+
+                {# ====================================== #}
+                {# FECHA                                  #}
+                {# ====================================== #}
+
+                <div class="seguimiento-field">
+
+                    {{ form.fecha_seguimiento.errors }}
+
+                    <label>
+                        {{ form.fecha_seguimiento.label }}
+                    </label>
+
+                    <div class="fecha-seguimiento-controles">
+                        {{ form.fecha_seguimiento }}
+                    </div>
+
+                    <div class="seguimiento-help">
+                        {{ form.fecha_seguimiento.help_text }}
+                    </div>
+
+                </div>
+
+
+                {# ====================================== #}
+                {# COMENTARIO                             #}
+                {# ====================================== #}
+
+                <div class="seguimiento-field">
+
+                    {{ form.comentario.errors }}
+
+                    <label
+                        for="{{ form.comentario.id_for_label }}"
+                    >
+                        {{ form.comentario.label }}
+                    </label>
+
+                    {{ form.comentario }}
+
+                    <div class="seguimiento-help">
+                        {{ form.comentario.help_text }}
+                    </div>
+
+                </div>
+
+
+                {# ====================================== #}
+                {# USUARIO                                #}
+                {# ====================================== #}
+
+                <div class="seguimiento-field">
+
+                    <label>
+                        {% translate "Registrado por" %}
+                    </label>
+
+                    <strong>
+                        {{ request.user }}
+                    </strong>
+
+                    <div class="seguimiento-help">
+                        {% translate "El usuario se registra automáticamente y no puede seleccionarse manualmente." %}
+                    </div>
+
+                </div>
+
+
+                <div class="seguimiento-actions">
+
+                    <input
+                        type="submit"
+                        value="{% translate 'Registrar seguimiento' %}"
+                        class="default"
+                    >
+
+                    <a
+                        href="{{ url_volver }}"
+                        class="button"
+                    >
+                        {% translate "Volver a la OT" %}
+                    </a>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </form>
+
+
+    {# ================================================== #}
+    {# HISTORIAL                                          #}
+    {# ================================================== #}
+
+    <div class="module">
+
+        <div class="historial-header">
+
+            <h2>
+                {% translate "Historial de seguimientos" %}
+            </h2>
+
+            <p>
+                {% translate "Los registros anteriores son históricos y no pueden modificarse ni eliminarse." %}
+            </p>
+
+        </div>
+
+
+        {% if seguimientos %}
+
+            {% for seguimiento in seguimientos %}
+
+                <div class="seguimiento-item">
+
+                    <div class="seguimiento-meta">
+
+                        <span class="seguimiento-fecha">
+
+                            {% if seguimiento.fecha_seguimiento %}
+
+                                {{ seguimiento.fecha_seguimiento|date:"d/m/Y H:i" }}
+
+                            {% elif seguimiento.created_at %}
+
+                                {{ seguimiento.created_at|date:"d/m/Y H:i" }}
+
+                            {% else %}
+
+                                —
+
+                            {% endif %}
+
+                        </span>
+
+
+                        <span>
+
+                            {% translate "Registrado por" %}:
+
+                            <strong>
+                                {{ seguimiento.usuario }}
+                            </strong>
+
+                        </span>
+
+
+                        {% if seguimiento.created_at %}
+
+                            <span>
+
+                                {% translate "Cargado al sistema" %}:
+
+                                {{ seguimiento.created_at|date:"d/m/Y H:i" }}
+
+                            </span>
+
+                        {% endif %}
+
+                    </div>
+
+
+                    <div class="seguimiento-comentario">
+
+                        {{ seguimiento.comentario|linebreaksbr }}
+
+                    </div>
+
+                </div>
+
+            {% endfor %}
+
+
+        {% else %}
+
+            <div class="sin-seguimientos">
+
+                {% translate "La orden todavía no tiene seguimientos registrados." %}
+
+            </div>
+
+        {% endif %}
+
+    </div>
+
+
+</div>
+
+{% endblock %}

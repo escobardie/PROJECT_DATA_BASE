@@ -626,6 +626,44 @@ class OrdenTrabajo(CodeModel):
                 "La fecha de finalización no puede ser anterior "
                 "a la fecha de inicio."
             )
+        if (
+            self.fecha_inicio
+            and self.fecha_finalizacion
+            and self.fecha_finalizacion
+            < self.fecha_inicio
+        ):
+            errores["fecha_finalizacion"] = _(
+                "La fecha de finalización no puede ser anterior "
+                "a la fecha de inicio."
+            )
+
+        # ==================================================
+        # FINALIZACIÓN DE INSTALACIÓN → FINALIZACIÓN OT
+        # ==================================================
+
+        if (
+            self.pk
+            and self.tipo
+            == TipoOrdenTrabajoChoices.INSTALACION
+            and self.fecha_finalizacion
+        ):
+            try:
+                instalacion = self.instalacion
+
+            except ObjectDoesNotExist:
+                instalacion = None
+
+            if (
+                instalacion
+                and instalacion.fecha_finalizacion
+                and self.fecha_finalizacion
+                < instalacion.fecha_finalizacion
+            ):
+                errores["fecha_finalizacion"] = _(
+                    "La fecha de finalización de la orden "
+                    "no puede ser anterior a la fecha de "
+                    "finalización de la instalación."
+                )
 
         # ==================================================
         # FACTURACIÓN

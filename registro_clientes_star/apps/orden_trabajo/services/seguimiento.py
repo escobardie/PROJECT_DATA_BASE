@@ -1,20 +1,24 @@
 """
-Servicios relacionados con seguimientos
+Servicios para registrar seguimientos
 de órdenes de trabajo.
 
-Este módulo centraliza:
+Un seguimiento representa un evento histórico.
 
-- creación de seguimientos;
-- actualización de comentarios;
-- eliminación de seguimientos.
+Una vez registrado:
 
-Todas las operaciones de escritura se ejecutan
-dentro de transacciones atómicas.
+- no se modifica;
+- no se elimina desde el flujo funcional;
+- una corrección genera un nuevo seguimiento.
 """
+
+from datetime import datetime
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+
+from apps.common.choices import EstadoOrdenTrabajoChoices
 
 from apps.orden_trabajo.models import (
     OrdenTrabajo,
@@ -25,14 +29,14 @@ from apps.usuarios.models import Usuario
 
 
 # ======================================================
-# FUNCIONES PRIVADAS
+# VALIDACIONES GENERALES
 # ======================================================
 
-def _validar_orden(
+def _validar_orden_guardada(
     orden_trabajo: OrdenTrabajo | None,
 ) -> None:
     """
-    Valida que la orden exista y esté guardada.
+    Valida una OT persistida.
     """
 
     if orden_trabajo is None:
@@ -50,12 +54,13 @@ def _validar_usuario(
     usuario: Usuario | None,
 ) -> None:
     """
-    Valida que el usuario exista y esté guardado.
+    Valida el usuario que registra el seguimiento.
     """
 
     if usuario is None:
         raise ValueError(
-            "Debe proporcionar un usuario válido."
+            "Debe proporcionar el usuario que "
+            "registra el seguimiento."
         )
 
     if not usuario.pk:
@@ -64,38 +69,15 @@ def _validar_usuario(
         )
 
 
-def _validar_comentario(
-    comentario: str,
-) -> str:
-    """
-    Valida y normaliza el comentario del seguimiento.
-    """
-
-    comentario_normalizado = (
-        comentario or ""
-    ).strip()
-
-    if not comentario_normalizado:
-        raise ValidationError(
-            {
-                "comentario": _(
-                    "Debe indicar un comentario."
-                )
-            }
-        )
-
-    return comentario_normalizado
-
-
 def _bloquear_orden(
     orden_trabajo: OrdenTrabajo,
 ) -> OrdenTrabajo:
     """
     Recupera y bloquea la OT durante
-    la transacción actual.
+    el registro del seguimiento.
     """
 
-    _validar_orden(
+    _validar_orden_guardada(
         orden_trabajo
     )
 
@@ -108,64 +90,50 @@ def _bloquear_orden(
     )
 
 
-def _bloquear_seguimiento(
-    seguimiento: OrdenTrabajoSeguimiento,
-) -> OrdenTrabajoSeguimiento:
+def _resolver_fecha_hora(
+    *,
+    fecha_nueva: datetime | None,
+) -> datetime:
     """
-    Recupera y bloquea un seguimiento existente.
+    Un seguimiento es siempre un registro nuevo.
+
+    Prioridad:
+
+    1. fecha proporcionada;
+    2. fecha/hora actual.
     """
-
-    if seguimiento is None:
-        raise ValueError(
-            "Debe proporcionar un seguimiento válido."
-        )
-
-    if not seguimiento.pk:
-        raise ValueError(
-            "El seguimiento debe estar guardado."
-        )
 
     return (
-        OrdenTrabajoSeguimiento.objects
-        .select_for_update()
-        .select_related(
-            "orden_trabajo",
-            "usuario",
-        )
-        .get(
-            pk=seguimiento.pk,
-        )
+        fecha_nueva
+        or timezone.now()
     )
 
 
 # ======================================================
-# CREAR SEGUIMIENTO
+# REGISTRAR SEGUIMIENTO
 # ======================================================
 
 @transaction.atomic
-def crear_seguimiento_ot(
+def registrar_seguimiento_ot(
     *,
     orden_trabajo: OrdenTrabajo,
     usuario: Usuario,
     comentario: str,
+    fecha: datetime | None = None,
 ) -> OrdenTrabajoSeguimiento:
     """
-    Crea un seguimiento asociado a una orden
-    de trabajo.
+    Registra una nueva actualización
+    dentro del historial de la OT.
 
-    Args:
-        orden_trabajo:
-            Orden sobre la cual se registra la novedad.
+    fecha_seguimiento:
+        cuándo ocurrió el evento.
 
-        usuario:
-            Usuario que registra el seguimiento.
+    usuario:
+        quién registró formalmente el evento.
 
-        comentario:
-            Descripción de la novedad o avance.
-
-    Returns:
-        OrdenTrabajoSeguimiento:
-            Seguimiento creado.
+    created_at:
+        cuándo fue almacenado técnicamente
+        en la base de datos.
     """
 
     _validar_usuario(
@@ -176,102 +144,74 @@ def crear_seguimiento_ot(
         orden_trabajo
     )
 
-    comentario_normalizado = (
-        _validar_comentario(
-            comentario
+    # ==================================================
+    # OT CERRADA
+    # ==================================================
+
+    if orden.estado in {
+        EstadoOrdenTrabajoChoices.FINALIZADA,
+        EstadoOrdenTrabajoChoices.CANCELADA,
+    }:
+        raise ValidationError(
+            {
+                "orden_trabajo": _(
+                    "No pueden agregarse seguimientos "
+                    "operativos a una orden finalizada "
+                    "o cancelada."
+                )
+            }
+        )
+
+    # ==================================================
+    # COMENTARIO
+    # ==================================================
+
+    comentario_limpio = (
+        comentario
+        or ""
+    ).strip()
+
+    if not comentario_limpio:
+        raise ValidationError(
+            {
+                "comentario": _(
+                    "Debe indicar una novedad, avance "
+                    "o comentario."
+                )
+            }
+        )
+
+    # ==================================================
+    # FECHA
+    # ==================================================
+
+    fecha_seguimiento = (
+        _resolver_fecha_hora(
+            fecha_nueva=fecha,
         )
     )
+
+    # ==================================================
+    # CREAR REGISTRO HISTÓRICO
+    # ==================================================
 
     seguimiento = OrdenTrabajoSeguimiento(
         orden_trabajo=orden,
         usuario=usuario,
-        comentario=comentario_normalizado,
+        fecha_seguimiento=fecha_seguimiento,
+        comentario=comentario_limpio,
     )
 
     seguimiento.full_clean()
-
     seguimiento.save()
 
     return seguimiento
 
 
 # ======================================================
-# ACTUALIZAR SEGUIMIENTO
+# EXPORTACIONES
 # ======================================================
-
-@transaction.atomic
-def actualizar_seguimiento_ot(
-    *,
-    seguimiento: OrdenTrabajoSeguimiento,
-    comentario: str,
-) -> OrdenTrabajoSeguimiento:
-    """
-    Actualiza el comentario de un seguimiento
-    existente.
-
-    El usuario autor del seguimiento no se modifica
-    mediante este servicio.
-    """
-
-    seguimiento_bloqueado = (
-        _bloquear_seguimiento(
-            seguimiento
-        )
-    )
-
-    _bloquear_orden(
-        seguimiento_bloqueado.orden_trabajo
-    )
-
-    comentario_normalizado = (
-        _validar_comentario(
-            comentario
-        )
-    )
-
-    seguimiento_bloqueado.comentario = (
-        comentario_normalizado
-    )
-
-    seguimiento_bloqueado.full_clean()
-
-    seguimiento_bloqueado.save(
-        update_fields=(
-            "comentario",
-        ),
-    )
-
-    return seguimiento_bloqueado
-
-
-# ======================================================
-# ELIMINAR SEGUIMIENTO
-# ======================================================
-
-@transaction.atomic
-def eliminar_seguimiento_ot(
-    *,
-    seguimiento: OrdenTrabajoSeguimiento,
-) -> tuple[int, dict[str, int]]:
-    """
-    Elimina un seguimiento de una orden de trabajo.
-    """
-
-    seguimiento_bloqueado = (
-        _bloquear_seguimiento(
-            seguimiento
-        )
-    )
-
-    _bloquear_orden(
-        seguimiento_bloqueado.orden_trabajo
-    )
-
-    return seguimiento_bloqueado.delete()
-
 
 __all__ = (
-    "crear_seguimiento_ot",
-    "actualizar_seguimiento_ot",
-    "eliminar_seguimiento_ot",
+    "registrar_seguimiento_ot",
 )

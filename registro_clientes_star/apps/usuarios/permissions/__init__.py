@@ -36,7 +36,29 @@ from .rules import (
     puede_cancelar_instalacion_concreta,
     puede_registrar_conformidad_instalacion,
 
+    puede_asignar_tecnico_ot,
+    puede_desasignar_tecnico_ot,
+    puede_establecer_tecnico_principal_ot,
+    puede_gestionar_tecnicos_ot,
+    puede_registrar_seguimiento_ot,
+    puede_ver_seguimiento_ot,
+    puede_ver_tecnico_ot,
+
+    puede_adjuntar_archivo_ot,
+    puede_retirar_archivo_ot,
+    puede_ver_archivo_ot,
+
+    # ======================================================
+    # FLUJO DE PROYECTO
+    # ======================================================
+    puede_registrar_recepcion_proyecto,
+    puede_planificar_proyecto,
+    puede_registrar_envio_proyecto,
+    puede_registrar_respuesta_proyecto,
+    puede_registrar_aceptacion_proyecto,
+    puede_registrar_rechazo_proyecto,
     puede_generar_ot_desde_proyecto,
+    puede_finalizar_proyecto,
 )
 
 
@@ -78,5 +100,27 @@ __all__ = (
     "puede_cancelar_instalacion_concreta",
     "puede_registrar_conformidad_instalacion",
 
+    "puede_asignar_tecnico_ot",
+    "puede_desasignar_tecnico_ot",
+    "puede_establecer_tecnico_principal_ot",
+    "puede_gestionar_tecnicos_ot",
+    "puede_registrar_seguimiento_ot",
+    "puede_ver_seguimiento_ot",
+    "puede_ver_tecnico_ot",
+    "puede_ver_archivo_ot",
+    "puede_adjuntar_archivo_ot",
+    "puede_retirar_archivo_ot",
+
+
+    # ======================================================
+    # FLUJO DE PROYECTO
+    # ======================================================
+    "puede_registrar_recepcion_proyecto",
+    "puede_planificar_proyecto",
+    "puede_registrar_envio_proyecto",
+    "puede_registrar_respuesta_proyecto",
+    "puede_registrar_aceptacion_proyecto",
+    "puede_registrar_rechazo_proyecto",
     "puede_generar_ot_desde_proyecto",
+    "puede_finalizar_proyecto",
 )

@@ -417,6 +417,26 @@ class TipoProyectoDetalleChoices(models.TextChoices):
     VIATICO = "VIATICO", _("Viático")
     OTRO = "OTRO", _("Otro")
 
+class PrioridadProyectoChoices(models.TextChoices):
+    """
+    Prioridades operativas/comerciales de un proyecto.
+    """
+
+    BAJA = "baja", _("Baja")
+    NORMAL = "normal", _("Normal")
+    ALTA = "alta", _("Alta")
+    URGENTE = "urgente", _("Urgente")
+
+class RespuestaClienteProyectoChoices(models.TextChoices):
+    """
+    Respuesta comercial del cliente
+    respecto del proyecto enviado.
+    """
+
+    PENDIENTE = "pendiente", _("Pendiente")
+    ACEPTADO = "aceptado", _("Aceptado")
+    RECHAZADO = "rechazado", _("Rechazado")
+
 # ======================================================
 # PROPIEDADES DE PRESUPUESTO
 # ======================================================

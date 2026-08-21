@@ -132,6 +132,20 @@ class Instalacion(CodeModel):
         ),
     )
 
+    usuario_conformidad = models.ForeignKey(
+        "usuarios.Usuario",
+        on_delete=models.PROTECT,
+        related_name="conformidades_instalacion_registradas",
+        blank=True,
+        null=True,
+        editable=False,
+        verbose_name=_("Registrado por"),
+        help_text=_(
+            "Usuario que registró formalmente "
+            "la conformidad de la instalación."
+        ),
+    )
+
     observaciones_conformidad = models.TextField(
         blank=True,
         default="",

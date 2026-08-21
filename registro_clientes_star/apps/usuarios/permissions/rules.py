@@ -14,6 +14,7 @@ from apps.usuarios.services.permisos import (
     puede_ver_instalaciones,
     puede_ver_ordenes_trabajo,
     puede_ver_proyectos,
+    
 )
 
 from apps.common.choices import (
@@ -21,6 +22,8 @@ from apps.common.choices import (
     EstadoInstalacionChoices,
     EstadoOrdenTrabajoChoices,
     TipoOrdenTrabajoChoices,
+    EstadoProyectoChoices,
+    RespuestaClienteProyectoChoices,
 )
 
 from apps.usuarios.services.querysets import (
@@ -257,6 +260,7 @@ def puede_editar_orden_trabajo(
     if es_tecnico(usuario):
         return orden_trabajo.tecnicos.filter(
             tecnico=usuario,
+            is_active=True,
         ).exists()
 
     if es_creador_proyecto(usuario):
@@ -294,8 +298,13 @@ def puede_facturar_ot(
     orden_trabajo,
 ) -> bool:
     """
-    Indica si el usuario puede registrar
-    la facturación de una OT concreta.
+    Indica si puede registrarse formalmente
+    la facturación de una OT.
+
+    fecha_facturacion puede existir previamente.
+
+    usuario_facturacion es quien determina
+    que el hito ya fue registrado.
     """
 
     if (
@@ -309,7 +318,7 @@ def puede_facturar_ot(
 
     return bool(
         orden_trabajo.esta_finalizada
-        and not orden_trabajo.esta_facturada
+        and not orden_trabajo.usuario_facturacion_id
     )
 
 
@@ -318,8 +327,15 @@ def puede_cobrar_ot(
     orden_trabajo,
 ) -> bool:
     """
-    Indica si el usuario puede registrar
-    el cobro de una OT concreta.
+    Indica si puede registrarse formalmente
+    el cobro de una OT.
+
+    La facturación debe estar formalmente registrada.
+
+    fecha_cobro puede estar previamente cargada.
+
+    usuario_cobro determina si el hito de cobro
+    ya fue registrado.
     """
 
     if (
@@ -332,8 +348,9 @@ def puede_cobrar_ot(
         return False
 
     return bool(
-        orden_trabajo.esta_facturada
-        and not orden_trabajo.esta_cobrada
+        orden_trabajo.usuario_facturacion_id
+        and orden_trabajo.fecha_facturacion
+        and not orden_trabajo.usuario_cobro_id
     )
 
 
@@ -390,6 +407,400 @@ def puede_crear_instalacion_desde_ot(
         tiene_origen
         and not orden_trabajo.tiene_instalacion
     )
+
+
+def puede_ver_tecnico_ot(
+    usuario: AbstractBaseUser | None,
+    asignacion,
+) -> bool:
+    """
+    Permite consultar una asignación técnica
+    cuando el usuario puede consultar su OT.
+    """
+
+    if not _objeto_guardado(
+        asignacion
+    ):
+        return False
+
+    return puede_ver_orden_trabajo(
+        usuario,
+        asignacion.orden_trabajo,
+    )
+
+def puede_ver_seguimiento_ot(
+    usuario: AbstractBaseUser | None,
+    seguimiento,
+) -> bool:
+    """
+    Permite consultar un seguimiento
+    cuando el usuario puede consultar su OT.
+    """
+
+    if not _objeto_guardado(
+        seguimiento
+    ):
+        return False
+
+    return puede_ver_orden_trabajo(
+        usuario,
+        seguimiento.orden_trabajo,
+    )
+
+# ======================================================
+# ARCHIVOS DE ÓRDENES DE TRABAJO
+# ======================================================
+
+
+def puede_ver_archivo_ot(
+    usuario: AbstractBaseUser | None,
+    archivo_ot,
+) -> bool:
+    """
+    Indica si un usuario puede consultar
+    un archivo asociado a una Orden de Trabajo.
+
+    Se permite consultar tanto archivos activos
+    como archivos retirados, ya que estos últimos
+    forman parte del historial documental.
+
+    El acceso depende del permiso de lectura
+    sobre la OT correspondiente.
+    """
+
+    if not _objeto_guardado(
+        archivo_ot
+    ):
+        return False
+
+    orden_trabajo = getattr(
+        archivo_ot,
+        "orden_trabajo",
+        None,
+    )
+
+    if not orden_trabajo:
+        return False
+
+    return puede_ver_orden_trabajo(
+        usuario,
+        orden_trabajo,
+    )
+
+def puede_adjuntar_archivo_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Indica si el usuario puede adjuntar documentación
+    a una Orden de Trabajo.
+
+    Una OT FINALIZADA puede continuar recibiendo
+    documentación posterior.
+
+    Una OT CANCELADA queda bloqueada.
+    """
+
+    if not _objeto_guardado(
+        orden_trabajo
+    ):
+        return False
+
+    # Debe tener acceso de lectura a la OT.
+    if not puede_ver_orden_trabajo(
+        usuario,
+        orden_trabajo,
+    ):
+        return False
+
+    # Una OT cancelada no recibe nueva documentación.
+    if (
+        orden_trabajo.estado
+        == EstadoOrdenTrabajoChoices.CANCELADA
+    ):
+        return False
+
+    # Roles de solo lectura.
+    if (
+        es_auditor(usuario)
+        or es_usuario_cliente(usuario)
+    ):
+        return False
+
+    # Administración.
+    if (
+        es_superadmin(usuario)
+        or es_gerencia(usuario)
+    ):
+        return True
+
+    # Técnico únicamente mientras permanezca
+    # asignado activamente a la OT.
+    if es_tecnico(usuario):
+        return orden_trabajo.tecnicos.filter(
+            tecnico=usuario,
+            is_active=True,
+        ).exists()
+
+    # Responsable/creador del proyecto.
+    if es_creador_proyecto(usuario):
+        return bool(
+            orden_trabajo.proyecto_id
+        )
+
+    return False
+
+def puede_retirar_archivo_ot(
+    usuario: AbstractBaseUser | None,
+    archivo_ot,
+) -> bool:
+    """
+    Determina si el usuario puede retirar
+    lógicamente un archivo de OT.
+    """
+
+    if not _objeto_guardado(
+        archivo_ot
+    ):
+        return False
+
+    if not archivo_ot.is_active:
+        return False
+
+    orden_trabajo = getattr(
+        archivo_ot,
+        "orden_trabajo",
+        None,
+    )
+
+    if not orden_trabajo:
+        return False
+
+    if not puede_ver_orden_trabajo(
+        usuario,
+        orden_trabajo,
+    ):
+        return False
+
+    if (
+        orden_trabajo.estado
+        == EstadoOrdenTrabajoChoices.CANCELADA
+    ):
+        return False
+
+    if (
+        es_auditor(usuario)
+        or es_usuario_cliente(usuario)
+        or es_tecnico(usuario)
+    ):
+        return False
+
+    if (
+        es_superadmin(usuario)
+        or es_gerencia(usuario)
+    ):
+        return True
+
+    if es_creador_proyecto(usuario):
+        return bool(
+            orden_trabajo.proyecto_id
+        )
+
+    return False
+
+# ======================================================
+# TÉCNICOS ASIGNADOS A OT
+# ======================================================
+
+def puede_gestionar_tecnicos_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Indica si el usuario puede administrar
+    el equipo técnico de una OT.
+
+    Reglas:
+
+    - debe poder ver y editar la OT;
+    - auditores y usuarios cliente no administran técnicos;
+    - un técnico asignado no obtiene este permiso
+      solamente por pertenecer a la OT;
+    - superadministración y gerencia pueden gestionar;
+    - el creador/gestor de un Proyecto puede gestionar
+      las OT pertenecientes a ese Proyecto;
+    - una OT finalizada o cancelada no modifica equipo;
+    - una vez generada la instalación, el equipo de la OT
+      queda congelado.
+    """
+
+    if (
+        not puede_editar_orden_trabajo(
+            usuario,
+            orden_trabajo,
+        )
+    ):
+        return False
+
+    if orden_trabajo.estado in {
+        EstadoOrdenTrabajoChoices.FINALIZADA,
+        EstadoOrdenTrabajoChoices.CANCELADA,
+    }:
+        return False
+
+    if orden_trabajo.tiene_instalacion:
+        return False
+
+    if (
+        es_auditor(usuario)
+        or es_usuario_cliente(usuario)
+    ):
+        return False
+
+    # Un técnico puede trabajar sobre la OT,
+    # pero no administrar el equipo.
+    if es_tecnico(usuario):
+        return False
+
+    if (
+        es_superadmin(usuario)
+        or es_gerencia(usuario)
+    ):
+        return True
+
+    if es_creador_proyecto(usuario):
+        return bool(
+            orden_trabajo.proyecto_id
+        )
+
+    return False
+
+
+def puede_asignar_tecnico_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Indica si puede asignarse un técnico
+    a la OT.
+    """
+
+    return puede_gestionar_tecnicos_ot(
+        usuario,
+        orden_trabajo,
+    )
+
+
+def puede_establecer_tecnico_principal_ot(
+    usuario: AbstractBaseUser | None,
+    asignacion,
+) -> bool:
+    """
+    Indica si una asignación puede convertirse
+    en técnico principal.
+    """
+
+    if not _objeto_guardado(
+        asignacion
+    ):
+        return False
+
+    if not asignacion.is_active:
+        return False
+
+    return puede_gestionar_tecnicos_ot(
+        usuario,
+        asignacion.orden_trabajo,
+    )
+
+
+def puede_desasignar_tecnico_ot(
+    usuario: AbstractBaseUser | None,
+    asignacion,
+) -> bool:
+    """
+    Indica si puede desasignarse formalmente
+    un técnico de una OT.
+
+    No elimina el registro.
+    """
+
+    if not _objeto_guardado(
+        asignacion
+    ):
+        return False
+
+    if not asignacion.is_active:
+        return False
+
+    return puede_gestionar_tecnicos_ot(
+        usuario,
+        asignacion.orden_trabajo,
+    )
+
+# ======================================================
+# SEGUIMIENTOS DE OT
+# ======================================================
+
+def puede_registrar_seguimiento_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Indica si el usuario puede registrar
+    un nuevo seguimiento operativo.
+
+    Los seguimientos son históricos:
+
+    - se agregan;
+    - no se modifican;
+    - no se eliminan desde el flujo funcional.
+
+    Pueden registrar seguimiento:
+
+    - superadministración;
+    - gerencia;
+    - creador/gestor del Proyecto;
+    - técnicos actualmente asignados a la OT.
+    """
+
+    if not puede_editar_orden_trabajo(
+        usuario,
+        orden_trabajo,
+    ):
+        return False
+
+    if orden_trabajo.estado in {
+        EstadoOrdenTrabajoChoices.FINALIZADA,
+        EstadoOrdenTrabajoChoices.CANCELADA,
+    }:
+        return False
+
+    if (
+        es_auditor(usuario)
+        or es_usuario_cliente(usuario)
+    ):
+        return False
+
+    if (
+        es_superadmin(usuario)
+        or es_gerencia(usuario)
+    ):
+        return True
+
+    if es_tecnico(usuario):
+        return orden_trabajo.tecnicos.filter(
+            tecnico=usuario,
+            is_active=True,
+        ).exists()
+
+    if es_creador_proyecto(usuario):
+        return bool(
+            orden_trabajo.proyecto_id
+        )
+
+    return False
+
 # ======================================================
 # INSTALACIONES
 # ======================================================
@@ -449,9 +860,11 @@ def puede_editar_instalacion(
         return bool(
             instalacion.tecnicos.filter(
                 usuario=usuario,
+                is_active=True,
             ).exists()
             or instalacion.orden_trabajo.tecnicos.filter(
                 tecnico=usuario,
+                is_active=True,
             ).exists()
         )
 
@@ -465,6 +878,12 @@ def puede_finalizar_instalacion_concreta(
     """
     Indica si el usuario puede finalizar
     una instalación concreta.
+
+    La instalación debe estar formalmente
+    EN_PROCESO.
+
+    La existencia previa de fecha_inicio no determina
+    por sí sola que el hito de inicio haya sido ejecutado.
     """
 
     if (
@@ -476,10 +895,9 @@ def puede_finalizar_instalacion_concreta(
     ):
         return False
 
-    return bool(
-        not instalacion.finalizada
-        and not instalacion.cancelada
-        and instalacion.fecha_inicio
+    return (
+        instalacion.estado
+        == EstadoInstalacionChoices.EN_PROCESO
     )
 
 def puede_programar_instalacion_concreta(
@@ -550,11 +968,15 @@ def puede_registrar_conformidad_instalacion(
     instalacion,
 ) -> bool:
     """
-    Indica si puede registrarse la conformidad
-    de una instalación.
+    Indica si puede registrarse formalmente
+    la conformidad de una instalación.
 
-    La instalación debe estar finalizada
-    y todavía no debe poseer conformidad.
+    La instalación debe estar FINALIZADA.
+
+    fecha_conformidad puede cargarse previamente.
+
+    usuario_conformidad determina si el hito
+    ya fue formalmente registrado.
     """
 
     if not puede_editar_instalacion(
@@ -563,10 +985,16 @@ def puede_registrar_conformidad_instalacion(
     ):
         return False
 
-    return bool(
-        instalacion.finalizada
-        and not instalacion.fecha_conformidad
-    )
+    if (
+        instalacion.estado
+        != EstadoInstalacionChoices.FINALIZADA
+    ):
+        return False
+
+    if instalacion.usuario_conformidad_id:
+        return False
+
+    return True
 
 def puede_ver_credenciales_instalacion(
     usuario: AbstractBaseUser | None,
@@ -672,8 +1100,47 @@ def puede_registrar_recepcion_ot(
     orden_trabajo,
 ) -> bool:
     """
-    Indica si puede registrarse la recepción
-    de una OT concreta.
+    Indica si puede registrarse formalmente
+    la recepción de una OT.
+
+    La fecha puede estar cargada previamente.
+
+    El hito se considera registrado cuando existe
+    usuario_recepcion_solicitud.
+    """
+
+    if not puede_editar_orden_trabajo(
+        usuario,
+        orden_trabajo,
+    ):
+        return False
+
+    if (
+        orden_trabajo.estado
+        != EstadoOrdenTrabajoChoices.BORRADOR
+    ):
+        return False
+
+    if orden_trabajo.usuario_recepcion_solicitud_id:
+        return False
+
+    return True
+
+def puede_programar_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Indica si una OT puede programarse.
+
+    No exige que fecha_programada esté previamente
+    guardada.
+
+    Al presionar Programar:
+
+    1. se utilizará la fecha escrita en el Admin;
+    2. si no existe, la previamente guardada;
+    3. si tampoco existe, la fecha/hora actual.
     """
 
     if not puede_editar_orden_trabajo(
@@ -684,33 +1151,11 @@ def puede_registrar_recepcion_ot(
 
     return (
         orden_trabajo.estado
-        == EstadoOrdenTrabajoChoices.BORRADOR
-    )
-
-
-def puede_programar_ot(
-    usuario: AbstractBaseUser | None,
-    orden_trabajo,
-) -> bool:
-    """
-    Indica si una OT puede programarse.
-    """
-
-    if not puede_editar_orden_trabajo(
-        usuario,
-        orden_trabajo,
-    ):
-        return False
-
-    return bool(
-        orden_trabajo.fecha_programada
-        and orden_trabajo.estado
         in {
             EstadoOrdenTrabajoChoices.BORRADOR,
             EstadoOrdenTrabajoChoices.PENDIENTE,
         }
     )
-
 
 def puede_registrar_envio_ot(
     usuario: AbstractBaseUser | None,
@@ -720,13 +1165,14 @@ def puede_registrar_envio_ot(
     Indica si puede registrarse el envío
     comercial al cliente.
 
-    Reglas:
+    La fecha puede estar precargada.
 
-    - el usuario debe poder editar la OT;
-    - la OT debe requerir aprobación comercial;
-    - debe existir recepción de la solicitud;
-    - la OT debe estar PENDIENTE o PROGRAMADA;
-    - todavía no debe haberse registrado el envío.
+    El envío se considera registrado cuando existe
+    usuario_envio_cliente.
+
+    Una OT generada desde Proyecto aprobado ya hereda
+    fecha y usuario de envío, por lo que esta acción
+    no vuelve a estar disponible.
     """
 
     if not puede_editar_orden_trabajo(
@@ -741,7 +1187,8 @@ def puede_registrar_envio_ot(
     if not orden_trabajo.fecha_recepcion_solicitud:
         return False
 
-    if orden_trabajo.fue_enviada_cliente:
+    # Envío ya confirmado o heredado.
+    if orden_trabajo.usuario_envio_cliente_id:
         return False
 
     return orden_trabajo.estado in {
@@ -754,8 +1201,15 @@ def puede_registrar_respuesta_ot(
     orden_trabajo,
 ) -> bool:
     """
-    Indica si puede registrarse la respuesta
-    del cliente, ya sea aceptación o rechazo.
+    Indica si puede registrarse formalmente
+    la respuesta del cliente.
+
+    Aplica tanto a aceptación como rechazo.
+
+    fecha_aceptacion puede estar previamente cargada.
+
+    usuario_aceptacion indica que la respuesta
+    ya fue formalmente registrada.
     """
 
     if not puede_editar_orden_trabajo(
@@ -767,14 +1221,18 @@ def puede_registrar_respuesta_ot(
     if not orden_trabajo.requiere_aceptacion_cliente:
         return False
 
-    if not orden_trabajo.fecha_envio_cliente:
+    # El envío debe haber sido confirmado.
+    if not orden_trabajo.usuario_envio_cliente_id:
+        return False
+
+    # Ya existe una respuesta registrada formalmente.
+    if orden_trabajo.usuario_aceptacion_id:
         return False
 
     return (
         orden_trabajo.estado_aceptacion
         == EstadoAceptacionOTChoices.PENDIENTE
     )
-
 
 def puede_registrar_aceptacion_ot(
     usuario: AbstractBaseUser | None,
@@ -789,7 +1247,6 @@ def puede_registrar_aceptacion_ot(
         orden_trabajo,
     )
 
-
 def puede_registrar_rechazo_ot(
     usuario: AbstractBaseUser | None,
     orden_trabajo,
@@ -803,6 +1260,44 @@ def puede_registrar_rechazo_ot(
         orden_trabajo,
     )
 
+def puede_registrar_envio_ot(
+    usuario: AbstractBaseUser | None,
+    orden_trabajo,
+) -> bool:
+    """
+    Indica si puede registrarse formalmente
+    el envío comercial al cliente.
+
+    La fecha de envío puede estar cargada previamente.
+
+    El hito se considera registrado cuando existe
+    usuario_envio_cliente.
+    """
+
+    if not puede_editar_orden_trabajo(
+        usuario,
+        orden_trabajo,
+    ):
+        return False
+
+    if not orden_trabajo.requiere_aceptacion_cliente:
+        return False
+
+    # La recepción debe estar formalmente registrada.
+    if not orden_trabajo.usuario_recepcion_solicitud_id:
+        return False
+
+    # El envío ya fue formalmente registrado.
+    if orden_trabajo.usuario_envio_cliente_id:
+        return False
+
+    return (
+        orden_trabajo.estado
+        in {
+            EstadoOrdenTrabajoChoices.PENDIENTE,
+            EstadoOrdenTrabajoChoices.PROGRAMADA,
+        }
+    )
 
 def puede_iniciar_ot(
     usuario: AbstractBaseUser | None,
@@ -920,17 +1415,18 @@ def puede_finalizar_ot(
     return True
 
 def puede_generar_ot_desde_proyecto(
-    usuario: AbstractBaseUser | None,
+    usuario,
     proyecto,
 ) -> bool:
     """
-    Indica si puede generarse una nueva OT
+    Determina si el usuario puede generar una OT
     desde un proyecto.
 
-    El proyecto debe:
-    - estar dentro del alcance del usuario;
-    - poder editarse;
-    - encontrarse APROBADO.
+    Requisitos:
+
+    - poder editar el proyecto;
+    - proyecto aprobado;
+    - al menos un detalle activo.
     """
 
     if not puede_editar_proyecto(
@@ -939,4 +1435,189 @@ def puede_generar_ot_desde_proyecto(
     ):
         return False
 
-    return proyecto.aprobado
+    if not proyecto.aprobado:
+        return False
+
+    if not proyecto.detalles.filter(
+        is_active=True,
+    ).exists():
+        return False
+
+    return True
+
+def puede_registrar_recepcion_proyecto(
+    usuario,
+    proyecto,
+) -> bool:
+    """
+    Permite confirmar la recepción de la solicitud.
+
+    La fecha puede haber sido cargada previamente.
+    El hito se considera registrado cuando existe
+    usuario_recepcion_solicitud.
+    """
+
+    if not puede_editar_proyecto(
+        usuario,
+        proyecto,
+    ):
+        return False
+
+    if (
+        proyecto.estado
+        != EstadoProyectoChoices.BORRADOR
+    ):
+        return False
+
+    # El hito ya fue confirmado.
+    if proyecto.usuario_recepcion_solicitud_id:
+        return False
+
+    return True
+
+def puede_planificar_proyecto(
+    usuario,
+    proyecto,
+) -> bool:
+    """
+    Permite planificar un proyecto cuya recepción
+    ya fue registrada.
+
+    La fecha planificada puede estar escrita en el
+    formulario aunque todavía no haya sido guardada.
+    """
+
+    if not puede_editar_proyecto(
+        usuario,
+        proyecto,
+    ):
+        return False
+
+    return bool(
+        proyecto.estado
+        == EstadoProyectoChoices.BORRADOR
+        and proyecto.usuario_recepcion_solicitud_id
+    )
+
+
+def puede_registrar_envio_proyecto(
+    usuario,
+    proyecto,
+) -> bool:
+    """
+    Permite registrar el envío del proyecto al cliente.
+
+    La fecha puede cargarse previamente.
+    El hito se considera registrado cuando existe
+    usuario_envio_cliente.
+    """
+
+    if not puede_editar_proyecto(
+        usuario,
+        proyecto,
+    ):
+        return False
+
+    if (
+        proyecto.estado
+        != EstadoProyectoChoices.PLANIFICADO
+    ):
+        return False
+
+    if proyecto.usuario_envio_cliente_id:
+        return False
+
+    return True
+
+def puede_registrar_respuesta_proyecto(
+    usuario: AbstractBaseUser | None,
+    proyecto,
+) -> bool:
+    """
+    Permite registrar aceptación o rechazo
+    mientras el proyecto esté pendiente de aprobación.
+    """
+
+    if not puede_editar_proyecto(
+        usuario,
+        proyecto,
+    ):
+        return False
+
+    return bool(
+        proyecto.estado
+        == EstadoProyectoChoices.PENDIENTE_APROBACION
+        and proyecto.fecha_envio_cliente
+        and proyecto.respuesta_cliente
+        == RespuestaClienteProyectoChoices.PENDIENTE
+    )
+
+
+def puede_registrar_aceptacion_proyecto(
+    usuario: AbstractBaseUser | None,
+    proyecto,
+) -> bool:
+    return puede_registrar_respuesta_proyecto(
+        usuario,
+        proyecto,
+    )
+
+
+def puede_registrar_rechazo_proyecto(
+    usuario: AbstractBaseUser | None,
+    proyecto,
+) -> bool:
+    return puede_registrar_respuesta_proyecto(
+        usuario,
+        proyecto,
+    )
+
+def puede_finalizar_proyecto(
+    usuario: AbstractBaseUser | None,
+    proyecto,
+) -> bool:
+    """
+    Indica si un Proyecto puede finalizarse.
+
+    Reglas:
+
+    - el usuario debe poder editar el Proyecto;
+    - debe estar APROBADO o EN_EJECUCION;
+    - debe tener al menos una OT;
+    - todas las OT deben estar FINALIZADA o CANCELADA.
+    """
+
+    if not puede_editar_proyecto(
+        usuario,
+        proyecto,
+    ):
+        return False
+
+    if proyecto.estado not in {
+        EstadoProyectoChoices.APROBADO,
+        EstadoProyectoChoices.EN_EJECUCION,
+    }:
+        return False
+
+    ordenes = proyecto.ordenes_trabajo.all()
+
+    if not ordenes.exists():
+        return False
+
+    estados_cerrados = {
+        EstadoOrdenTrabajoChoices.FINALIZADA,
+        EstadoOrdenTrabajoChoices.CANCELADA,
+    }
+
+    existen_ordenes_abiertas = (
+        ordenes
+        .exclude(
+            estado__in=estados_cerrados,
+        )
+        .exists()
+    )
+
+    if existen_ordenes_abiertas:
+        return False
+
+    return True
