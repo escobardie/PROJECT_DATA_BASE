@@ -2302,13 +2302,6 @@ class ProyectoAdmin(admin.ModelAdmin):
                         )
                     ),
 
-                    # "puede_abrir": (
-                    #     puede_abrir_archivo_proyecto(
-                    #         request.user,
-                    #         archivo_proyecto,
-                    #     )
-                    # ),
-
                     "puede_retirar": (
                         puede_retirar_archivo_proyecto(
                             request.user,
