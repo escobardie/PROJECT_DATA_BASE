@@ -201,6 +201,241 @@ def puede_ver_costos_del_proyecto(
         or es_auditor(usuario)
     )
 
+# ======================================================
+# ARCHIVOS DE PROYECTO
+# ======================================================
+
+def puede_ver_archivo_proyecto(
+    usuario: AbstractBaseUser | None,
+    archivo_proyecto,
+) -> bool:
+    """
+    Indica si un usuario puede consultar
+    un archivo asociado a un Proyecto.
+
+    Los archivos activos y retirados forman parte
+    del historial documental.
+
+    La visibilidad depende del permiso que el usuario
+    tenga sobre el Proyecto correspondiente.
+    """
+
+    if not _objeto_guardado(
+        archivo_proyecto
+    ):
+        return False
+
+    proyecto = getattr(
+        archivo_proyecto,
+        "proyecto",
+        None,
+    )
+
+    if not proyecto:
+        return False
+
+    return puede_ver_proyecto(
+        usuario,
+        proyecto,
+    )
+
+
+def puede_adjuntar_archivo_proyecto(
+    usuario: AbstractBaseUser | None,
+    proyecto,
+) -> bool:
+    """
+    Determina si el usuario puede incorporar
+    documentación a un Proyecto.
+
+    REGLAS:
+
+    - debe poder consultar el proyecto;
+    - proyecto CANCELADO no admite nueva documentación;
+    - proyecto FINALIZADO sí admite documentación posterior;
+    - superadmin puede adjuntar;
+    - gerencia puede adjuntar;
+    - creador/gestor de proyectos puede adjuntar;
+    - técnico no puede adjuntar por su condición de técnico;
+    - auditor no puede adjuntar;
+    - cliente no puede adjuntar.
+    """
+
+    # ==================================================
+    # PROYECTO VÁLIDO
+    # ==================================================
+
+    if not _objeto_guardado(
+        proyecto
+    ):
+        return False
+
+    # ==================================================
+    # DEBE PODER VER EL PROYECTO
+    # ==================================================
+
+    if not puede_ver_proyecto(
+        usuario,
+        proyecto,
+    ):
+        return False
+
+    # ==================================================
+    # CANCELADO
+    # ==================================================
+
+    if (
+        proyecto.estado
+        == EstadoProyectoChoices.CANCELADO
+    ):
+        return False
+
+    # ==================================================
+    # ROLES DE SOLO LECTURA
+    # ==================================================
+
+    if (
+        es_auditor(usuario)
+        or es_usuario_cliente(usuario)
+        or es_tecnico(usuario)
+    ):
+        return False
+
+    # ==================================================
+    # ADMINISTRACIÓN
+    # ==================================================
+
+    if (
+        es_superadmin(usuario)
+        or es_gerencia(usuario)
+    ):
+        return True
+
+    # ==================================================
+    # GESTIÓN DE PROYECTOS
+    # ==================================================
+
+    if es_creador_proyecto(usuario):
+        return True
+
+    return False
+
+
+def puede_retirar_archivo_proyecto(
+    usuario: AbstractBaseUser | None,
+    archivo_proyecto,
+) -> bool:
+    """
+    Determina si el usuario puede retirar lógicamente
+    un archivo del historial documental de Proyecto.
+
+    Retirar NO elimina:
+
+    - registro de base de datos;
+    - archivo físico;
+    - usuario que realizó la carga;
+    - fecha documental;
+    - created_at.
+
+    Se registra:
+
+    - is_active = False;
+    - fecha_retiro;
+    - usuario_retiro;
+    - motivo_retiro.
+
+    REGLAS:
+
+    - archivo debe existir;
+    - archivo debe seguir activo;
+    - usuario debe poder ver el Proyecto;
+    - Proyecto CANCELADO queda bloqueado;
+    - superadmin puede retirar;
+    - gerencia puede retirar;
+    - creador/gestor de Proyecto puede retirar;
+    - técnico no puede retirar;
+    - auditor no puede retirar;
+    - cliente no puede retirar.
+    """
+
+    # ==================================================
+    # ARCHIVO VÁLIDO
+    # ==================================================
+
+    if not _objeto_guardado(
+        archivo_proyecto
+    ):
+        return False
+
+    # ==================================================
+    # YA RETIRADO
+    # ==================================================
+
+    if not archivo_proyecto.is_active:
+        return False
+
+    # ==================================================
+    # PROYECTO
+    # ==================================================
+
+    proyecto = getattr(
+        archivo_proyecto,
+        "proyecto",
+        None,
+    )
+
+    if not proyecto:
+        return False
+
+    # ==================================================
+    # VISIBILIDAD
+    # ==================================================
+
+    if not puede_ver_proyecto(
+        usuario,
+        proyecto,
+    ):
+        return False
+
+    # ==================================================
+    # CANCELADO
+    # ==================================================
+
+    if (
+        proyecto.estado
+        == EstadoProyectoChoices.CANCELADO
+    ):
+        return False
+
+    # ==================================================
+    # ROLES SIN PERMISO DE RETIRO
+    # ==================================================
+
+    if (
+        es_auditor(usuario)
+        or es_usuario_cliente(usuario)
+        or es_tecnico(usuario)
+    ):
+        return False
+
+    # ==================================================
+    # ADMINISTRACIÓN
+    # ==================================================
+
+    if (
+        es_superadmin(usuario)
+        or es_gerencia(usuario)
+    ):
+        return True
+
+    # ==================================================
+    # GESTIÓN DE PROYECTOS
+    # ==================================================
+
+    if es_creador_proyecto(usuario):
+        return True
+
+    return False
 
 # ======================================================
 # ÓRDENES DE TRABAJO

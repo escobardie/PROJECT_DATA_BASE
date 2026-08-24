@@ -1,22 +1,30 @@
 from django import forms
 from django.contrib import admin, messages
-from django.core.exceptions import ValidationError
+from django.core.exceptions import (
+    PermissionDenied,
+    ValidationError,
+)
 from django.db import transaction
 from django.db.models import Count
 from django.http import (
+    FileResponse,
+    Http404,
     HttpResponseNotAllowed,
     HttpResponseRedirect,
 )
+from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils.translation import gettext_lazy as _
 
 from apps.proyecto.models import (
     Proyecto,
+    ProyectoArchivo,
     ProyectoDetalle,
 )
 
 from apps.proyecto.services import (
     actualizar_detalle_proyecto,
+    adjuntar_archivo_proyecto,
     crear_detalle_proyecto,
     crear_orden_trabajo_desde_proyecto,
     eliminar_detalle_proyecto,
@@ -26,9 +34,11 @@ from apps.proyecto.services import (
     registrar_envio_proyecto,
     registrar_recepcion_proyecto,
     registrar_rechazo_proyecto,
+    retirar_archivo_proyecto,
 )
 
 from apps.usuarios.permissions import (
+    puede_adjuntar_archivo_proyecto,
     puede_editar_proyecto,
     puede_eliminar_proyecto,
     puede_finalizar_proyecto,
@@ -38,6 +48,8 @@ from apps.usuarios.permissions import (
     puede_registrar_envio_proyecto,
     puede_registrar_recepcion_proyecto,
     puede_registrar_rechazo_proyecto,
+    puede_retirar_archivo_proyecto,
+    puede_ver_archivo_proyecto,
     puede_ver_costos_del_proyecto,
     puede_ver_proyecto,
 )
@@ -53,7 +65,136 @@ from apps.usuarios.services.querysets import (
 )
 
 from .inlines import ProyectoDetalleInline
+from .proyecto_archivo import ProyectoArchivoInline
 
+# ======================================================
+# FORMULARIO - ADJUNTAR ARCHIVO
+# ======================================================
+
+
+class AdjuntarArchivoProyectoForm(forms.Form):
+    """
+    Formulario administrativo utilizado para
+    incorporar documentación a un Proyecto.
+
+    El usuario que realiza la carga se obtiene
+    automáticamente desde request.user.
+    """
+
+    archivo = forms.FileField(
+        required=True,
+        label=_("Archivo"),
+        help_text=_(
+            "Seleccione el documento, fotografía, plano, "
+            "informe o evidencia que desea adjuntar."
+        ),
+    )
+
+    fecha_documento = forms.SplitDateTimeField(
+        required=False,
+        label=_("Fecha del documento"),
+        input_date_formats=[
+            "%Y-%m-%d",
+        ],
+        input_time_formats=[
+            "%H:%M",
+            "%H:%M:%S",
+        ],
+        widget=forms.SplitDateTimeWidget(
+            date_format="%Y-%m-%d",
+            time_format="%H:%M",
+            date_attrs={
+                "type": "date",
+            },
+            time_attrs={
+                "type": "time",
+                "step": "60",
+            },
+        ),
+        help_text=_(
+            "Fecha y hora correspondiente al documento. "
+            "Si se deja vacía se utilizará la fecha "
+            "y hora actuales."
+        ),
+    )
+
+    descripcion = forms.CharField(
+        required=False,
+        label=_("Descripción"),
+        max_length=150,
+        widget=forms.Textarea(
+            attrs={
+                "rows": 3,
+                "placeholder": _(
+                    "Descripción breve del documento..."
+                ),
+            }
+        ),
+        help_text=_(
+            "Descripción breve del contenido del archivo."
+        ),
+    )
+
+
+# ======================================================
+# FORMULARIO - RETIRAR ARCHIVO
+# ======================================================
+
+
+class RetirarArchivoProyectoForm(forms.Form):
+    """
+    Formulario utilizado para retirar lógicamente
+    un documento del Proyecto.
+
+    No elimina el archivo ni el registro histórico.
+    """
+
+    fecha_retiro = forms.SplitDateTimeField(
+        required=False,
+        label=_("Fecha de retiro"),
+        input_date_formats=[
+            "%Y-%m-%d",
+        ],
+        input_time_formats=[
+            "%H:%M",
+            "%H:%M:%S",
+        ],
+        widget=forms.SplitDateTimeWidget(
+            date_format="%Y-%m-%d",
+            time_format="%H:%M",
+            date_attrs={
+                "type": "date",
+            },
+            time_attrs={
+                "type": "time",
+                "step": "60",
+            },
+        ),
+        help_text=_(
+            "Si se deja vacía se utilizará "
+            "la fecha y hora actuales."
+        ),
+    )
+
+    motivo_retiro = forms.CharField(
+        required=True,
+        label=_("Motivo del retiro"),
+        max_length=250,
+        widget=forms.Textarea(
+            attrs={
+                "rows": 2,
+                "placeholder": _(
+                    "Indique el motivo por el cual "
+                    "se retira el documento..."
+                ),
+            }
+        ),
+    )
+
+
+# ======================================================
+# PROYECTO ADMIN
+# ======================================================
 
 @admin.register(Proyecto)
 class ProyectoAdmin(admin.ModelAdmin):
@@ -405,6 +546,7 @@ class ProyectoAdmin(admin.ModelAdmin):
 
     inlines = (
         ProyectoDetalleInline,
+        ProyectoArchivoInline,
     )
 
     # ======================================================
@@ -669,12 +811,62 @@ class ProyectoAdmin(admin.ModelAdmin):
     ):
         """
         Agrega los endpoints administrativos
-        correspondientes al flujo del proyecto.
+        correspondientes al flujo del Proyecto
+        y a su gestión documental.
         """
 
         urls = super().get_urls()
 
         custom_urls = [
+
+            # ==================================================
+            # ARCHIVOS
+            # ==================================================
+
+            path(
+                "<path:object_id>/archivos/",
+                self.admin_site.admin_view(
+                    self.gestionar_archivos_view
+                ),
+                name=(
+                    "proyecto_proyecto_"
+                    "gestionar_archivos"
+                ),
+            ),
+
+            path(
+                (
+                    "<path:object_id>/archivos/"
+                    "<int:archivo_id>/retirar/"
+                ),
+                self.admin_site.admin_view(
+                    self.retirar_archivo_view
+                ),
+                name=(
+                    "proyecto_proyecto_"
+                    "retirar_archivo"
+                ),
+            ),
+
+            path(
+                (
+                    "<path:object_id>/archivos/"
+                    "<int:archivo_id>/descargar/"
+                ),
+                self.admin_site.admin_view(
+                    self.descargar_archivo_view
+                ),
+                name=(
+                    "proyecto_proyecto_"
+                    "descargar_archivo"
+                ),
+            ),
+
+
+            # ==================================================
+            # RECEPCIÓN
+            # ==================================================
+
             path(
                 "<path:object_id>/registrar-recepcion/",
                 self.admin_site.admin_view(
@@ -685,6 +877,10 @@ class ProyectoAdmin(admin.ModelAdmin):
                     "registrar_recepcion"
                 ),
             ),
+
+            # ==================================================
+            # PLANIFICACIÓN
+            # ==================================================
 
             path(
                 "<path:object_id>/planificar/",
@@ -697,6 +893,10 @@ class ProyectoAdmin(admin.ModelAdmin):
                 ),
             ),
 
+            # ==================================================
+            # ENVÍO
+            # ==================================================
+
             path(
                 "<path:object_id>/registrar-envio/",
                 self.admin_site.admin_view(
@@ -707,6 +907,10 @@ class ProyectoAdmin(admin.ModelAdmin):
                     "registrar_envio"
                 ),
             ),
+
+            # ==================================================
+            # ACEPTACIÓN
+            # ==================================================
 
             path(
                 "<path:object_id>/registrar-aceptacion/",
@@ -719,6 +923,10 @@ class ProyectoAdmin(admin.ModelAdmin):
                 ),
             ),
 
+            # ==================================================
+            # RECHAZO
+            # ==================================================
+
             path(
                 "<path:object_id>/registrar-rechazo/",
                 self.admin_site.admin_view(
@@ -730,6 +938,10 @@ class ProyectoAdmin(admin.ModelAdmin):
                 ),
             ),
 
+            # ==================================================
+            # FINALIZACIÓN
+            # ==================================================
+
             path(
                 "<path:object_id>/finalizar/",
                 self.admin_site.admin_view(
@@ -739,6 +951,10 @@ class ProyectoAdmin(admin.ModelAdmin):
                     "proyecto_proyecto_finalizar"
                 ),
             ),
+
+            # ==================================================
+            # GENERAR OT
+            # ==================================================
 
             path(
                 "<path:object_id>/generar-ot/",
@@ -858,6 +1074,35 @@ class ProyectoAdmin(admin.ModelAdmin):
         return self.get_object(
             request,
             object_id,
+        )
+
+    # ======================================================
+    # HELPERS DE REDIRECCION
+    # ======================================================
+    
+    def _redirect_gestion_archivos(
+        self,
+        proyecto,
+    ):
+        """
+        Redirige a la pantalla de gestión
+        documental del Proyecto.
+        """
+
+        url = reverse(
+            (
+                "admin:"
+                "proyecto_proyecto_"
+                "gestionar_archivos"
+            ),
+            args=(
+                proyecto.pk,
+            ),
+            current_app=self.admin_site.name,
+        )
+
+        return HttpResponseRedirect(
+            url
         )
 
     # ======================================================
@@ -1722,6 +1967,23 @@ class ProyectoAdmin(admin.ModelAdmin):
                             proyecto,
                         )
                     ),
+                    # ==========================================
+                    # ARCHIVOS
+                    # ==========================================
+
+                    "puede_ver_archivos_proyecto": (
+                        puede_ver_proyecto(
+                            request.user,
+                            proyecto,
+                        )
+                    ),
+
+                    "puede_adjuntar_archivo_proyecto": (
+                        puede_adjuntar_archivo_proyecto(
+                            request.user,
+                            proyecto,
+                        )
+                    ),
                 }
             )
 
@@ -1846,6 +2108,524 @@ class ProyectoAdmin(admin.ModelAdmin):
 
         return self._redirect_change(
             proyecto
+        )
+
+    # ======================================================
+    # GESTIÓN DE ARCHIVOS
+    # ======================================================
+
+    def gestionar_archivos_view(
+        self,
+        request,
+        object_id,
+    ):
+        """
+        Gestiona el historial documental de un Proyecto.
+
+        Permite:
+
+        - consultar documentos;
+        - adjuntar documentación;
+        - descargar documentos;
+        - visualizar documentos retirados;
+        - acceder al retiro lógico según permisos.
+
+        Flujo:
+
+            Admin
+                ↓
+            Permissions
+                ↓
+            Services
+                ↓
+            ProyectoArchivo
+        """
+
+        # ==================================================
+        # PROYECTO
+        # ==================================================
+
+        proyecto = self._obtener_proyecto(
+            request,
+            object_id,
+        )
+
+        if proyecto is None:
+            return self._redirect_changelist()
+
+        # ==================================================
+        # PERMISO DE LECTURA
+        # ==================================================
+
+        if not puede_ver_proyecto(
+            request.user,
+            proyecto,
+        ):
+            raise PermissionDenied
+
+        # ==================================================
+        # PERMISO DE CARGA
+        # ==================================================
+
+        puede_adjuntar = (
+            puede_adjuntar_archivo_proyecto(
+                request.user,
+                proyecto,
+            )
+        )
+
+        # ==================================================
+        # FORMULARIO
+        # ==================================================
+
+        form = AdjuntarArchivoProyectoForm(
+            request.POST or None,
+            request.FILES or None,
+        )
+
+        # ==================================================
+        # ALTA
+        # ==================================================
+
+        if request.method == "POST":
+
+            if not puede_adjuntar:
+                raise PermissionDenied
+
+            if form.is_valid():
+
+                try:
+                    adjuntar_archivo_proyecto(
+                        proyecto=proyecto,
+                        usuario=request.user,
+                        archivo=(
+                            form.cleaned_data[
+                                "archivo"
+                            ]
+                        ),
+                        descripcion=(
+                            form.cleaned_data[
+                                "descripcion"
+                            ]
+                        ),
+                        fecha_documento=(
+                            form.cleaned_data[
+                                "fecha_documento"
+                            ]
+                        ),
+                    )
+
+                except ValidationError as exc:
+
+                    if hasattr(
+                        exc,
+                        "message_dict",
+                    ):
+
+                        for campo, errores in (
+                            exc.message_dict.items()
+                        ):
+
+                            campo_formulario = (
+                                campo
+                                if campo in form.fields
+                                else None
+                            )
+
+                            for error in errores:
+                                form.add_error(
+                                    campo_formulario,
+                                    error,
+                                )
+
+                    else:
+
+                        for error in exc.messages:
+                            form.add_error(
+                                None,
+                                error,
+                            )
+
+                else:
+
+                    self.message_user(
+                        request,
+                        _(
+                            "Archivo adjuntado "
+                            "correctamente al proyecto."
+                        ),
+                        level=messages.SUCCESS,
+                    )
+
+                    return (
+                        self._redirect_gestion_archivos(
+                            proyecto
+                        )
+                    )
+
+        # ==================================================
+        # HISTORIAL
+        # ==================================================
+
+        archivos = (
+            ProyectoArchivo.objects
+            .filter(
+                proyecto=proyecto,
+            )
+            .select_related(
+                "usuario",
+                "usuario_retiro",
+            )
+            .order_by(
+                "-is_active",
+                "-fecha_documento",
+                "-created_at",
+            )
+        )
+
+        # ==================================================
+        # PERMISOS POR DOCUMENTO
+        # ==================================================
+
+        archivos_contexto = []
+
+        for archivo_proyecto in archivos:
+
+            archivos_contexto.append(
+                {
+                    "archivo": archivo_proyecto,
+
+                    "puede_ver": (
+                        puede_ver_archivo_proyecto(
+                            request.user,
+                            archivo_proyecto,
+                        )
+                    ),
+
+                    # "puede_abrir": (
+                    #     puede_abrir_archivo_proyecto(
+                    #         request.user,
+                    #         archivo_proyecto,
+                    #     )
+                    # ),
+
+                    "puede_retirar": (
+                        puede_retirar_archivo_proyecto(
+                            request.user,
+                            archivo_proyecto,
+                        )
+                    ),
+                }
+            )
+
+        # ==================================================
+        # CONTEXTO
+        # ==================================================
+
+        request.current_app = (
+            self.admin_site.name
+        )
+
+        context = {
+            **self.admin_site.each_context(
+                request
+            ),
+
+            "title": _(
+                "Archivos de %(proyecto)s"
+            )
+            % {
+                "proyecto": proyecto.codigo,
+            },
+
+            "opts": self.model._meta,
+
+            "original": proyecto,
+
+            "proyecto": proyecto,
+
+            "form": form,
+
+            "media": (
+                self.media
+                + form.media
+            ),
+
+            "puede_adjuntar": (
+                puede_adjuntar
+            ),
+
+            "archivos": (
+                archivos_contexto
+            ),
+
+            "url_volver": reverse(
+                "admin:proyecto_proyecto_change",
+                args=(
+                    proyecto.pk,
+                ),
+                current_app=self.admin_site.name,
+            ),
+        }
+
+        return TemplateResponse(
+            request,
+            (
+                "admin/proyecto/"
+                "proyecto/"
+                "gestionar_archivos.html"
+            ),
+            context,
+        )
+
+    # ======================================================
+    # RETIRAR ARCHIVO
+    # ======================================================
+
+    def retirar_archivo_view(
+        self,
+        request,
+        object_id,
+        archivo_id,
+    ):
+        """
+        Retira lógicamente un documento del Proyecto.
+
+        No elimina:
+
+        - el registro;
+        - el archivo físico;
+        - el usuario original;
+        - la fecha documental;
+        - created_at.
+        """
+
+        respuesta = self._validar_post(
+            request
+        )
+
+        if respuesta:
+            return respuesta
+
+        # ==================================================
+        # PROYECTO
+        # ==================================================
+
+        proyecto = self._obtener_proyecto(
+            request,
+            object_id,
+        )
+
+        if proyecto is None:
+            return self._redirect_changelist()
+
+        # ==================================================
+        # ARCHIVO
+        # ==================================================
+
+        archivo_proyecto = (
+            ProyectoArchivo.objects
+            .select_related(
+                "proyecto",
+                "usuario",
+                "usuario_retiro",
+            )
+            .filter(
+                pk=archivo_id,
+                proyecto=proyecto,
+            )
+            .first()
+        )
+
+        if archivo_proyecto is None:
+            raise Http404(
+                _("Archivo no encontrado.")
+            )
+
+        # ==================================================
+        # PERMISO
+        # ==================================================
+
+        if not puede_retirar_archivo_proyecto(
+            request.user,
+            archivo_proyecto,
+        ):
+            raise PermissionDenied
+
+        # ==================================================
+        # FORMULARIO
+        # ==================================================
+
+        form = RetirarArchivoProyectoForm(
+            request.POST
+        )
+
+        if not form.is_valid():
+
+            for errores in form.errors.values():
+
+                for error in errores:
+
+                    self.message_user(
+                        request,
+                        error,
+                        level=messages.ERROR,
+                    )
+
+            return (
+                self._redirect_gestion_archivos(
+                    proyecto
+                )
+            )
+
+        # ==================================================
+        # SERVICE
+        # ==================================================
+
+        try:
+            retirar_archivo_proyecto(
+                archivo_proyecto=(
+                    archivo_proyecto
+                ),
+                usuario=request.user,
+                motivo=(
+                    form.cleaned_data[
+                        "motivo_retiro"
+                    ]
+                ),
+                fecha_retiro=(
+                    form.cleaned_data[
+                        "fecha_retiro"
+                    ]
+                ),
+            )
+
+        except ValidationError as exc:
+
+            self._mostrar_error(
+                request,
+                exc,
+            )
+
+        else:
+
+            self.message_user(
+                request,
+                _(
+                    "Archivo retirado correctamente "
+                    "del flujo documental."
+                ),
+                level=messages.SUCCESS,
+            )
+
+        return (
+            self._redirect_gestion_archivos(
+                proyecto
+            )
+        )
+
+    # ======================================================
+    # DESCARGAR ARCHIVO
+    # ======================================================
+
+    def descargar_archivo_view(
+        self,
+        request,
+        object_id,
+        archivo_id,
+    ):
+        """
+        Entrega un documento solamente después
+        de comprobar que el usuario posee permiso
+        sobre el Proyecto.
+
+        Los documentos retirados continúan formando
+        parte del historial y pueden descargarse si
+        el usuario conserva permiso de lectura.
+        """
+
+        # ==================================================
+        # PROYECTO
+        # ==================================================
+
+        proyecto = self._obtener_proyecto(
+            request,
+            object_id,
+        )
+
+        if proyecto is None:
+            raise Http404
+
+        # ==================================================
+        # ARCHIVO
+        # ==================================================
+
+        archivo_proyecto = (
+            ProyectoArchivo.objects
+            .select_related(
+                "proyecto",
+                "usuario",
+            )
+            .filter(
+                pk=archivo_id,
+                proyecto=proyecto,
+            )
+            .first()
+        )
+
+        if archivo_proyecto is None:
+            raise Http404(
+                _("Archivo no encontrado.")
+            )
+
+        # ==================================================
+        # PERMISO
+        # ==================================================
+
+        if not puede_ver_archivo_proyecto(
+            request.user,
+            archivo_proyecto,
+        ):
+            raise PermissionDenied
+
+        # ==================================================
+        # ARCHIVO FÍSICO
+        # ==================================================
+
+        if not archivo_proyecto.archivo:
+            raise Http404(
+                _("El archivo no está disponible.")
+            )
+
+        try:
+            archivo_abierto = (
+                archivo_proyecto.archivo.open(
+                    "rb"
+                )
+            )
+
+        except (
+            FileNotFoundError,
+            OSError,
+        ):
+
+            raise Http404(
+                _(
+                    "El archivo físico no se encuentra "
+                    "disponible."
+                )
+            )
+
+        # ==================================================
+        # RESPUESTA
+        # ==================================================
+
+        return FileResponse(
+            archivo_abierto,
+            as_attachment=True,
+            filename=(
+                archivo_proyecto.nombre_archivo
+            ),
         )
 
     # ======================================================

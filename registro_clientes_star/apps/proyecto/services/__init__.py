@@ -22,6 +22,11 @@ from .orden_trabajo import (
     crear_orden_trabajo_desde_proyecto,
 )
 
+from .archivo import (
+    adjuntar_archivo_proyecto,
+    retirar_archivo_proyecto,
+)
+
 __all__ = (
     # Detalles
     "crear_detalle_proyecto",
@@ -43,4 +48,8 @@ __all__ = (
 
     # Orden de trabajo
     "crear_orden_trabajo_desde_proyecto",
+
+    # Archivos
+    "adjuntar_archivo_proyecto",
+    "retirar_archivo_proyecto",
 )

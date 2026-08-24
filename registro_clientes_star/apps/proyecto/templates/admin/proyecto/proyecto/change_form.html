@@ -112,7 +112,25 @@
 
     {% if original %}
 
+        {# ================================================== #}
+        {# GESTIÓN DOCUMENTAL                                 #}
+        {# ================================================== #}
 
+        {% if puede_ver_archivos_proyecto %}
+
+            <li>
+
+                <a
+                    href="{% url 'admin:proyecto_proyecto_gestionar_archivos' original.pk %}"
+                    class="viewsitelink"
+                >
+                    {% translate "Gestionar archivos" %}
+                </a>
+
+            </li>
+
+        {% endif %}
+        
         {# ================================================== #}
         {# REGISTRAR RECEPCIÓN                                #}
         {# ================================================== #}
