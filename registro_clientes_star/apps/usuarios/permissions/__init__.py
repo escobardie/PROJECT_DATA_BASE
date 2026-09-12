@@ -48,6 +48,10 @@ from .rules import (
     puede_retirar_archivo_ot,
     puede_ver_archivo_ot,
 
+    puede_adjuntar_archivo_proyecto,
+    puede_retirar_archivo_proyecto,
+    puede_ver_archivo_proyecto,
+
     # ======================================================
     # FLUJO DE PROYECTO
     # ======================================================
@@ -110,6 +114,10 @@ __all__ = (
     "puede_ver_archivo_ot",
     "puede_adjuntar_archivo_ot",
     "puede_retirar_archivo_ot",
+
+    "puede_ver_archivo_proyecto",
+    "puede_adjuntar_archivo_proyecto",
+    "puede_retirar_archivo_proyecto",
 
 
     # ======================================================

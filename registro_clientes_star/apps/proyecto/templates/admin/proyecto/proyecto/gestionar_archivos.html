@@ -1,0 +1,1541 @@
+{% extends "admin/base_site.html" %}
+
+{% load i18n %}
+
+
+{# ====================================================== #}
+{# EXTRA HEAD                                             #}
+{# ====================================================== #}
+
+{% block extrahead %}
+
+    {{ block.super }}
+    {{ media }}
+
+    <style>
+
+        /* ==================================================
+           CONTENEDOR GENERAL
+           ================================================== */
+
+        .gestion-archivos {
+            max-width: 1450px;
+        }
+
+
+        /* ==================================================
+           RESUMEN DEL PROYECTO
+           ================================================== */
+
+        .proyecto-resumen {
+            margin-bottom: 24px;
+        }
+
+        .proyecto-resumen-header {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--hairline-color);
+        }
+
+        .proyecto-resumen-header h2 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .proyecto-resumen-body {
+            display: grid;
+
+            grid-template-columns:
+                repeat(4, minmax(180px, 1fr));
+
+            gap: 16px;
+
+            padding: 16px 18px;
+        }
+
+        .proyecto-resumen-item {
+            min-width: 0;
+        }
+
+        .proyecto-resumen-label {
+            display: block;
+
+            margin-bottom: 4px;
+
+            color: var(--body-quiet-color);
+
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .proyecto-resumen-value {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+
+        /* ==================================================
+           ADJUNTAR ARCHIVO
+           ================================================== */
+
+        .archivo-carga {
+            margin-bottom: 28px;
+        }
+
+        .archivo-carga-header {
+            padding: 16px 20px;
+
+            border-bottom:
+                1px solid var(--hairline-color);
+        }
+
+        .archivo-carga-header h2 {
+            margin: 0 0 6px 0;
+
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .archivo-carga-header p {
+            margin: 0;
+
+            max-width: 950px;
+
+            color: var(--body-quiet-color);
+
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .archivo-form-body {
+            padding: 20px;
+        }
+
+        .archivo-form-grid {
+            display: grid;
+
+            grid-template-columns:
+                repeat(2, minmax(0, 1fr));
+
+            gap: 22px;
+        }
+
+        .archivo-form-group {
+            min-width: 0;
+        }
+
+        .archivo-form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .archivo-form-group > label {
+            display: block;
+
+            margin-bottom: 7px;
+
+            font-weight: 600;
+        }
+
+        .archivo-form-group input[type="file"] {
+            box-sizing: border-box;
+
+            width: 100%;
+            max-width: 650px;
+        }
+
+        .archivo-form-group textarea {
+            box-sizing: border-box;
+
+            width: 100%;
+            max-width: 900px;
+            min-height: 90px;
+
+            resize: vertical;
+        }
+
+
+        /* ==================================================
+           FECHA DEL DOCUMENTO
+           ================================================== */
+
+        .fecha-documento-controles {
+            display: flex;
+
+            align-items: center;
+            flex-wrap: wrap;
+
+            gap: 8px;
+        }
+
+        .fecha-documento-controles input[type="date"] {
+            min-width: 165px;
+        }
+
+        .fecha-documento-controles input[type="time"] {
+            min-width: 130px;
+        }
+
+
+        /* ==================================================
+           USUARIO
+           ================================================== */
+
+        .archivo-usuario-box {
+            padding: 12px 14px;
+
+            border: 1px solid var(--hairline-color);
+            border-radius: 4px;
+
+            background: var(--darkened-bg);
+        }
+
+        .archivo-usuario-box strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+
+        /* ==================================================
+           AYUDA
+           ================================================== */
+
+        .archivo-help {
+            margin-top: 6px;
+
+            color: var(--body-quiet-color);
+
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+
+        /* ==================================================
+           ERRORES
+           ================================================== */
+
+        .archivo-form-group .errorlist {
+            margin: 0 0 8px 0;
+        }
+
+        .archivo-error-general {
+            margin-bottom: 18px;
+        }
+
+
+        /* ==================================================
+           ACCIONES DEL FORMULARIO
+           ================================================== */
+
+        .archivo-form-actions {
+            display: flex;
+
+            align-items: center;
+            flex-wrap: wrap;
+
+            gap: 10px;
+
+            margin-top: 24px;
+            padding-top: 18px;
+
+            border-top:
+                1px solid var(--hairline-color);
+        }
+
+
+        /* ==================================================
+           MODO CONSULTA
+           ================================================== */
+
+        .archivo-solo-consulta {
+            margin-bottom: 28px;
+
+            padding: 16px 18px;
+
+            border: 1px solid var(--hairline-color);
+            border-radius: 4px;
+
+            background: var(--darkened-bg);
+        }
+
+        .archivo-solo-consulta strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .archivo-solo-consulta p {
+            margin: 0;
+
+            color: var(--body-quiet-color);
+        }
+
+
+        /* ==================================================
+           HISTORIAL
+           ================================================== */
+
+        .archivos-historial {
+            margin-top: 28px;
+        }
+
+        .archivos-historial-header {
+            padding: 14px 18px;
+
+            border-bottom:
+                1px solid var(--hairline-color);
+        }
+
+        .archivos-historial-header h2 {
+            margin: 0 0 5px 0;
+        }
+
+        .archivos-historial-header p {
+            margin: 0;
+
+            color: var(--body-quiet-color);
+
+            font-size: 12px;
+        }
+
+        .archivos-tabla-wrapper {
+            overflow-x: auto;
+        }
+
+        .archivos-tabla {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .archivos-tabla th {
+            white-space: nowrap;
+        }
+
+        .archivos-tabla th,
+        .archivos-tabla td {
+            vertical-align: top;
+        }
+
+
+        /* ==================================================
+           DOCUMENTO
+           ================================================== */
+
+        .archivo-nombre {
+            min-width: 220px;
+        }
+
+        .archivo-nombre strong {
+            display: block;
+
+            margin-bottom: 6px;
+
+            word-break: break-word;
+        }
+
+        .archivo-descripcion {
+            min-width: 240px;
+            max-width: 420px;
+
+            line-height: 1.45;
+        }
+
+
+        /* ==================================================
+           BADGES
+           ================================================== */
+
+        .archivo-badge {
+            display: inline-block;
+
+            padding: 3px 8px;
+
+            border: 1px solid var(--hairline-color);
+            border-radius: 10px;
+
+            background: var(--darkened-bg);
+
+            font-size: 11px;
+            font-weight: 600;
+
+            white-space: nowrap;
+        }
+
+        .archivo-retirado {
+            opacity: 0.68;
+        }
+
+
+        /* ==================================================
+           ACCIONES
+           ================================================== */
+
+        .archivo-acciones {
+            min-width: 270px;
+        }
+
+        .archivo-descarga {
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+
+        /* ==================================================
+           RETIRAR
+           ================================================== */
+
+        .archivo-retiro {
+            margin-top: 8px;
+
+            padding-top: 10px;
+
+            border-top:
+                1px solid var(--hairline-color);
+        }
+
+        .archivo-retiro-titulo {
+            display: block;
+
+            margin-bottom: 7px;
+
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .archivo-retiro-fecha {
+            display: flex;
+
+            align-items: center;
+            flex-wrap: wrap;
+
+            gap: 5px;
+
+            margin-bottom: 7px;
+        }
+
+        .archivo-retiro-fecha input[type="date"] {
+            max-width: 150px;
+        }
+
+        .archivo-retiro-fecha input[type="time"] {
+            max-width: 120px;
+        }
+
+        .archivo-retiro textarea {
+            box-sizing: border-box;
+
+            width: 100%;
+            min-width: 240px;
+            max-width: 340px;
+            min-height: 65px;
+
+            margin-top: 7px;
+            margin-bottom: 7px;
+
+            resize: vertical;
+        }
+
+
+        /* ==================================================
+           INFORMACIÓN DEL RETIRO
+           ================================================== */
+
+        .retiro-info {
+            min-width: 220px;
+        }
+
+        .retiro-info-linea {
+            margin-bottom: 6px;
+        }
+
+        .retiro-info-label {
+            color: var(--body-quiet-color);
+
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+
+        /* ==================================================
+           SIN ARCHIVOS
+           ================================================== */
+
+        .sin-archivos {
+            padding: 22px;
+
+            color: var(--body-quiet-color);
+        }
+
+
+        /* ==================================================
+           RESPONSIVE
+           ================================================== */
+
+        @media (max-width: 1000px) {
+
+            .proyecto-resumen-body {
+                grid-template-columns:
+                    repeat(2, minmax(180px, 1fr));
+            }
+
+        }
+
+        @media (max-width: 900px) {
+
+            .archivo-form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .archivo-form-group.full-width {
+                grid-column: auto;
+            }
+
+        }
+
+        @media (max-width: 767px) {
+
+            .proyecto-resumen-body {
+                grid-template-columns: 1fr;
+            }
+
+            .archivo-form-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .archivo-form-actions input,
+            .archivo-form-actions a {
+                box-sizing: border-box;
+
+                width: 100%;
+
+                text-align: center;
+            }
+
+        }
+
+    </style>
+
+{% endblock %}
+
+
+{# ====================================================== #}
+{# BREADCRUMBS                                            #}
+{# ====================================================== #}
+
+{% block breadcrumbs %}
+
+    <div class="breadcrumbs">
+
+        <a href="{% url 'admin:index' %}">
+            {% translate "Inicio" %}
+        </a>
+
+        &rsaquo;
+
+        <a href="{% url 'admin:proyecto_proyecto_changelist' %}">
+            {% translate "Proyectos" %}
+        </a>
+
+        &rsaquo;
+
+        <a href="{{ url_volver }}">
+            {{ proyecto.codigo }}
+        </a>
+
+        &rsaquo;
+
+        {% translate "Gestionar archivos" %}
+
+    </div>
+
+{% endblock %}
+
+
+{# ====================================================== #}
+{# CONTENIDO                                              #}
+{# ====================================================== #}
+
+{% block content %}
+
+<div
+    id="content-main"
+    class="gestion-archivos">
+
+
+    {# ================================================== #}
+    {# RESUMEN DEL PROYECTO                               #}
+    {# ================================================== #}
+
+    <div class="module proyecto-resumen">
+
+        <div class="proyecto-resumen-header">
+
+            <h2>
+                {{ proyecto.codigo }}
+                —
+                {{ proyecto.nombre }}
+            </h2>
+
+        </div>
+
+
+        <div class="proyecto-resumen-body">
+
+
+            {# ========================================== #}
+            {# ESTADO                                     #}
+            {# ========================================== #}
+
+            <div class="proyecto-resumen-item">
+
+                <span class="proyecto-resumen-label">
+                    {% translate "Estado" %}
+                </span>
+
+                <span class="proyecto-resumen-value">
+                    {{ proyecto.get_estado_display }}
+                </span>
+
+            </div>
+
+
+            {# ========================================== #}
+            {# PRIORIDAD                                  #}
+            {# ========================================== #}
+
+            <div class="proyecto-resumen-item">
+
+                <span class="proyecto-resumen-label">
+                    {% translate "Prioridad" %}
+                </span>
+
+                <span class="proyecto-resumen-value">
+                    {{ proyecto.get_prioridad_display }}
+                </span>
+
+            </div>
+
+
+            {# ========================================== #}
+            {# SUCURSAL                                   #}
+            {# ========================================== #}
+
+            <div class="proyecto-resumen-item">
+
+                <span class="proyecto-resumen-label">
+                    {% translate "Sucursal" %}
+                </span>
+
+                <span class="proyecto-resumen-value">
+
+                    {% if proyecto.sucursal %}
+
+                        {{ proyecto.sucursal }}
+
+                    {% else %}
+
+                        —
+
+                    {% endif %}
+
+                </span>
+
+            </div>
+
+
+            {# ========================================== #}
+            {# RESPONSABLE                                #}
+            {# ========================================== #}
+
+            <div class="proyecto-resumen-item">
+
+                <span class="proyecto-resumen-label">
+                    {% translate "Responsable" %}
+                </span>
+
+                <span class="proyecto-resumen-value">
+
+                    {% if proyecto.responsable %}
+
+                        {{ proyecto.responsable }}
+
+                    {% else %}
+
+                        —
+
+                    {% endif %}
+
+                </span>
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+    {# ====================================================== #}
+    {# GOOGLE DRIVE                                           #}
+    {# ====================================================== #}
+
+    <div
+        class="module"
+        style="margin-bottom: 24px;">
+
+        <div
+            style="
+                padding: 14px 18px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 20px;
+                flex-wrap: wrap;
+            "
+        >
+
+            <div>
+
+                <strong>
+                    Google Drive
+                </strong>
+
+                <div
+                    class="archivo-help"
+                    style="margin-top: 5px;"
+                >
+
+                    {% if google_drive_conectado %}
+
+                        Conectado y disponible para
+                        documentos del Proyecto.
+
+                    {% else %}
+
+                        Google Drive todavía no está
+                        conectado con el sistema.
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+
+            <div
+                style="
+                    display: flex;
+                    gap: 8px;
+                    align-items: center;
+                    flex-wrap: wrap;
+                "
+            >
+
+                {% if google_drive_conectado %}
+
+                    <span class="archivo-badge">
+                        Conectado
+                    </span>
+
+
+                    {% if google_drive_carpeta_url %}
+
+                        <a
+                            href="{{ google_drive_carpeta_url }}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="button"
+                        >
+                            {% translate "Abrir carpeta del Proyecto en Drive" %}
+                        </a>
+
+                    {% endif %}
+
+
+                {% elif puede_conectar_google_drive %}
+
+                    <a
+                        href="{% url 'admin:proyecto_proyecto_google_drive_conectar' %}?proyecto={{ proyecto.pk }}"
+                        class="button"
+                    >
+                        {% translate "Conectar Google Drive" %}
+                    </a>
+
+                {% endif %}
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    {# ================================================== #}
+    {# ADJUNTAR ARCHIVO                                   #}
+    {# ================================================== #}
+
+    {% if puede_adjuntar %}
+
+        <form
+            method="post"
+            enctype="multipart/form-data"
+            novalidate
+            class="archivo-carga"
+        >
+
+            {% csrf_token %}
+
+
+            <div class="module">
+
+
+                {# ====================================== #}
+                {# CABECERA                               #}
+                {# ====================================== #}
+
+                <div class="archivo-carga-header">
+
+                    <h2>
+                        {% translate "Adjuntar archivo al proyecto" %}
+                    </h2>
+
+                    <p>
+                        {% translate "Incorpore propuestas, presupuestos, planos, fotografías, informes, actas, aprobaciones o cualquier otra documentación relacionada con el proyecto." %}
+                    </p>
+
+                </div>
+
+
+                {# ====================================== #}
+                {# CUERPO                                 #}
+                {# ====================================== #}
+
+                <div class="archivo-form-body">
+
+
+                    {# ================================== #}
+                    {# ERRORES GENERALES                  #}
+                    {# ================================== #}
+
+                    {% if form.non_field_errors %}
+
+                        <div class="archivo-error-general">
+
+                            <ul class="errorlist nonfield">
+
+                                {% for error in form.non_field_errors %}
+
+                                    <li>
+                                        {{ error }}
+                                    </li>
+
+                                {% endfor %}
+
+                            </ul>
+
+                        </div>
+
+                    {% endif %}
+
+
+                    <div class="archivo-form-grid">
+
+                        {# ============================== #}
+                        {# ORIGEN                         #}
+                        {# ============================== #}
+
+                        <div
+                            class="
+                                archivo-form-group
+                                full-width
+                            "
+                        >
+
+                            {{ form.origen.errors }}
+
+                            <label>
+                                {{ form.origen.label }}
+                            </label>
+
+                            {{ form.origen }}
+
+                            <div class="archivo-help">
+
+                                Archivo local almacena el documento
+                                dentro del sistema.
+
+                                Google Drive permite mantener el
+                                documento en Drive para su posterior
+                                edición y colaboración.
+
+                            </div>
+
+                        </div>
+
+                        {# ============================== #}
+                        {# ARCHIVO                        #}
+                        {# ============================== #}
+
+                        <div class="archivo-form-group">
+
+                            {{ form.archivo.errors }}
+
+                            <label
+                                for="{{ form.archivo.id_for_label }}"
+                            >
+                                {{ form.archivo.label }}
+
+                                <span class="required">
+                                    *
+                                </span>
+                            </label>
+
+                            {{ form.archivo }}
+
+                            {% if form.archivo.help_text %}
+
+                                <div class="archivo-help">
+                                    {{ form.archivo.help_text }}
+                                </div>
+
+                            {% endif %}
+
+                        </div>
+
+
+                        {# ============================== #}
+                        {# FECHA DEL DOCUMENTO            #}
+                        {# ============================== #}
+
+                        <div class="archivo-form-group">
+
+                            {{ form.fecha_documento.errors }}
+
+                            <label>
+                                {{ form.fecha_documento.label }}
+                            </label>
+
+                            <div class="fecha-documento-controles">
+
+                                {{ form.fecha_documento }}
+
+                            </div>
+
+                            {% if form.fecha_documento.help_text %}
+
+                                <div class="archivo-help">
+                                    {{ form.fecha_documento.help_text }}
+                                </div>
+
+                            {% endif %}
+
+                        </div>
+
+
+                        {# ============================== #}
+                        {# DESCRIPCIÓN                    #}
+                        {# ============================== #}
+
+                        <div
+                            class="
+                                archivo-form-group
+                                full-width
+                            "
+                        >
+
+                            {{ form.descripcion.errors }}
+
+                            <label
+                                for="{{ form.descripcion.id_for_label }}"
+                            >
+                                {{ form.descripcion.label }}
+                            </label>
+
+                            {{ form.descripcion }}
+
+                            {% if form.descripcion.help_text %}
+
+                                <div class="archivo-help">
+                                    {{ form.descripcion.help_text }}
+                                </div>
+
+                            {% endif %}
+
+                        </div>
+
+
+                        {# ============================== #}
+                        {# CARGADO POR                    #}
+                        {# ============================== #}
+
+                        <div
+                            class="
+                                archivo-form-group
+                                full-width
+                            "
+                        >
+
+                            <label>
+                                {% translate "Cargado por" %}
+                            </label>
+
+                            <div class="archivo-usuario-box">
+
+                                <strong>
+                                    {{ request.user }}
+                                </strong>
+
+                                <div class="archivo-help">
+
+                                    {% translate "El usuario se registra automáticamente como responsable de la carga documental." %}
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                    </div>
+
+
+                    {# ================================== #}
+                    {# ACCIONES                           #}
+                    {# ================================== #}
+
+                    <div class="archivo-form-actions">
+
+                        <input
+                            type="submit"
+                            value="{% translate 'Adjuntar archivo' %}"
+                            class="default"
+                        >
+
+                        <a
+                            href="{{ url_volver }}"
+                            class="button"
+                        >
+                            {% translate "Volver al Proyecto" %}
+                        </a>
+
+                    </div>
+
+
+                </div>
+
+            </div>
+
+        </form>
+
+
+    {% else %}
+
+
+        {# ============================================== #}
+        {# SOLO CONSULTA                                 #}
+        {# ============================================== #}
+
+        <div class="archivo-solo-consulta">
+
+            <strong>
+                {% translate "Historial documental en modo consulta" %}
+            </strong>
+
+            <p>
+                {% translate "Puede consultar la documentación asociada al proyecto, pero su usuario no posee permiso para adjuntar nuevos archivos." %}
+            </p>
+
+        </div>
+
+
+    {% endif %}
+
+
+    {# ================================================== #}
+    {# HISTORIAL DOCUMENTAL                               #}
+    {# ================================================== #}
+
+    <div class="module archivos-historial">
+
+
+        <div class="archivos-historial-header">
+
+            <h2>
+                {% translate "Historial documental del proyecto" %}
+            </h2>
+
+            <p>
+                {% translate "Los documentos retirados permanecen registrados para conservar la trazabilidad documental." %}
+            </p>
+
+        </div>
+
+
+        {% if archivos %}
+
+
+            <div class="archivos-tabla-wrapper">
+
+
+                <table class="archivos-tabla">
+
+
+                    <thead>
+
+                        <tr>
+
+                            <th>
+                                {% translate "Archivo" %}
+                            </th>
+
+                            <th>
+                                {% translate "Estado" %}
+                            </th>
+
+                            <th>
+                                {% translate "Fecha documento" %}
+                            </th>
+
+                            <th>
+                                {% translate "Cargado por" %}
+                            </th>
+
+                            <th>
+                                {% translate "Fecha de carga" %}
+                            </th>
+
+                            <th>
+                                {% translate "Descripción" %}
+                            </th>
+
+                            <th>
+                                {% translate "Retiro" %}
+                            </th>
+
+                            <th>
+                                {% translate "Acciones" %}
+                            </th>
+
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody>
+
+
+                        {% for fila in archivos %}
+
+                            {% with archivo_proyecto=fila.archivo %}
+
+
+                                <tr
+                                    {% if not archivo_proyecto.is_active %}
+                                        class="archivo-retirado"
+                                    {% endif %}
+                                >
+
+
+                                    {# ========================== #}
+                                    {# ARCHIVO                    #}
+                                    {# ========================== #}
+
+                                    <td class="archivo-nombre">
+
+                                        <strong>
+                                            {{ archivo_proyecto.nombre_archivo }}
+                                        </strong>
+
+
+
+                                        {% if fila.puede_ver %}
+
+
+                                            {# ============================================== #}
+                                            {# ARCHIVO LOCAL                                  #}
+                                            {# ============================================== #}
+
+                                            {% if archivo_proyecto.es_local %}
+
+                                                <a
+                                                    href="{% url 'admin:proyecto_proyecto_descargar_archivo' proyecto.pk archivo_proyecto.pk %}"
+                                                    class="button archivo-descarga"
+                                                >
+                                                    {% translate "Descargar" %}
+                                                </a>
+
+                                            {% endif %}
+
+
+                                            {# ============================================== #}
+                                            {# GOOGLE DRIVE                                   #}
+                                            {# ============================================== #}
+
+                                            {% if archivo_proyecto.es_google_drive %}
+
+                                                {% if archivo_proyecto.drive_web_view_link %}
+
+                                                    <a
+                                                        href="{{ archivo_proyecto.drive_web_view_link }}"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        class="button archivo-descarga"
+                                                    >
+                                                        {% translate "Abrir en Google Drive" %}
+                                                    </a>
+
+                                                {% endif %}
+
+                                            {% endif %}
+
+
+                                        {% endif %}
+
+
+                                    {# ========================== #}
+                                    {# ESTADO                     #}
+                                    {# ========================== #}
+
+                                    <td>
+
+                                        {% if archivo_proyecto.is_active %}
+
+                                            <span class="archivo-badge">
+                                                {% translate "Activo" %}
+                                            </span>
+
+                                        {% else %}
+
+                                            <span class="archivo-badge">
+                                                {% translate "Retirado" %}
+                                            </span>
+
+                                        {% endif %}
+
+                                    </td>
+
+
+                                    {# ========================== #}
+                                    {# FECHA DOCUMENTAL           #}
+                                    {# ========================== #}
+
+                                    <td>
+
+                                        {% if archivo_proyecto.fecha_documento %}
+
+                                            {{ archivo_proyecto.fecha_documento|date:"d/m/Y H:i" }}
+
+                                        {% else %}
+
+                                            —
+
+                                        {% endif %}
+
+                                    </td>
+
+
+                                    {# ========================== #}
+                                    {# USUARIO DE CARGA           #}
+                                    {# ========================== #}
+
+                                    <td>
+
+                                        {% if archivo_proyecto.usuario %}
+
+                                            {{ archivo_proyecto.usuario }}
+
+                                        {% else %}
+
+                                            —
+
+                                        {% endif %}
+
+                                    </td>
+
+
+                                    {# ========================== #}
+                                    {# CREATED_AT                 #}
+                                    {# ========================== #}
+
+                                    <td>
+
+                                        {% if archivo_proyecto.created_at %}
+
+                                            {{ archivo_proyecto.created_at|date:"d/m/Y H:i" }}
+
+                                        {% else %}
+
+                                            —
+
+                                        {% endif %}
+
+                                    </td>
+
+
+                                    {# ========================== #}
+                                    {# DESCRIPCIÓN                #}
+                                    {# ========================== #}
+
+                                    <td class="archivo-descripcion">
+
+                                        {% if archivo_proyecto.descripcion %}
+
+                                            {{ archivo_proyecto.descripcion|linebreaksbr }}
+
+                                        {% else %}
+
+                                            —
+
+                                        {% endif %}
+
+                                    </td>
+
+
+                                    {# ========================== #}
+                                    {# INFORMACIÓN DE RETIRO      #}
+                                    {# ========================== #}
+
+                                    <td class="retiro-info">
+
+                                        {% if not archivo_proyecto.is_active %}
+
+
+                                            <div class="retiro-info-linea">
+
+                                                <span class="retiro-info-label">
+                                                    {% translate "Fecha" %}:
+                                                </span>
+
+                                                <br>
+
+                                                {% if archivo_proyecto.fecha_retiro %}
+
+                                                    {{ archivo_proyecto.fecha_retiro|date:"d/m/Y H:i" }}
+
+                                                {% else %}
+
+                                                    —
+
+                                                {% endif %}
+
+                                            </div>
+
+
+                                            <div class="retiro-info-linea">
+
+                                                <span class="retiro-info-label">
+                                                    {% translate "Retirado por" %}:
+                                                </span>
+
+                                                <br>
+
+                                                {% if archivo_proyecto.usuario_retiro %}
+
+                                                    {{ archivo_proyecto.usuario_retiro }}
+
+                                                {% else %}
+
+                                                    —
+
+                                                {% endif %}
+
+                                            </div>
+
+
+                                            <div class="retiro-info-linea">
+
+                                                <span class="retiro-info-label">
+                                                    {% translate "Motivo" %}:
+                                                </span>
+
+                                                <br>
+
+                                                {% if archivo_proyecto.motivo_retiro %}
+
+                                                    {{ archivo_proyecto.motivo_retiro|linebreaksbr }}
+
+                                                {% else %}
+
+                                                    —
+
+                                                {% endif %}
+
+                                            </div>
+
+
+                                        {% else %}
+
+                                            —
+
+                                        {% endif %}
+
+                                    </td>
+
+
+                                    {# ========================== #}
+                                    {# ACCIONES                   #}
+                                    {# ========================== #}
+
+                                    <td class="archivo-acciones">
+
+
+                                        {% if fila.puede_retirar %}
+
+
+                                            <form
+                                                method="post"
+                                                action="{% url 'admin:proyecto_proyecto_retirar_archivo' proyecto.pk archivo_proyecto.pk %}"
+                                                class="archivo-retiro"
+                                            >
+
+                                                {% csrf_token %}
+
+
+                                                <span class="archivo-retiro-titulo">
+                                                    {% translate "Retirar archivo" %}
+                                                </span>
+
+
+                                                {# ------------------ #}
+                                                {# FECHA              #}
+                                                {# ------------------ #}
+
+                                                <div class="archivo-help">
+                                                    {% translate "Fecha de retiro" %}
+                                                </div>
+
+
+                                                <div class="archivo-retiro-fecha">
+
+                                                    <input
+                                                        type="date"
+                                                        name="fecha_retiro_0"
+                                                        aria-label="{% translate 'Fecha de retiro' %}"
+                                                    >
+
+                                                    <input
+                                                        type="time"
+                                                        name="fecha_retiro_1"
+                                                        step="60"
+                                                        aria-label="{% translate 'Hora de retiro' %}"
+                                                    >
+
+                                                </div>
+
+
+                                                <div class="archivo-help">
+                                                    {% translate "Si queda vacía se utilizará la fecha y hora actuales." %}
+                                                </div>
+
+
+                                                {# ------------------ #}
+                                                {# MOTIVO             #}
+                                                {# ------------------ #}
+
+                                                <textarea
+                                                    name="motivo_retiro"
+                                                    maxlength="250"
+                                                    required
+                                                    placeholder="{% translate 'Indique el motivo del retiro...' %}"
+                                                    aria-label="{% translate 'Motivo del retiro' %}"
+                                                ></textarea>
+
+
+                                                {# ------------------ #}
+                                                {# RETIRAR            #}
+                                                {# ------------------ #}
+
+                                                <button
+                                                    type="submit"
+                                                    class="button deletelink"
+                                                    onclick="
+                                                        return confirm(
+                                                            '{% translate "¿Confirma que desea retirar este archivo? El documento permanecerá registrado en el historial." %}'
+                                                        );
+                                                    "
+                                                >
+                                                    {% translate "Retirar" %}
+                                                </button>
+
+
+                                            </form>
+
+
+                                        {% elif fila.puede_ver %}
+
+
+                                            {% if archivo_proyecto.is_active %}
+
+                                                <span class="archivo-help">
+                                                    {% translate "Sin acciones adicionales." %}
+                                                </span>
+
+                                            {% else %}
+
+                                                <span class="archivo-help">
+                                                    {% translate "Documento histórico." %}
+                                                </span>
+
+                                            {% endif %}
+
+
+                                        {% else %}
+
+                                            —
+
+                                        {% endif %}
+
+
+                                    </td>
+
+
+                                </tr>
+
+
+                            {% endwith %}
+
+                        {% endfor %}
+
+
+                    </tbody>
+
+                </table>
+
+
+            </div>
+
+
+        {% else %}
+
+
+            <div class="sin-archivos">
+
+                {% translate "El proyecto todavía no tiene archivos registrados." %}
+
+            </div>
+
+
+        {% endif %}
+
+
+    </div>
+
+
+    {# ================================================== #}
+    {# VOLVER                                             #}
+    {# ================================================== #}
+
+    <div class="submit-row">
+
+        <a
+            href="{{ url_volver }}"
+            class="button"
+        >
+            {% translate "Volver al Proyecto" %}
+        </a>
+
+    </div>
+
+
+</div>
+
+{% endblock %}
