@@ -181,9 +181,20 @@ cython_debug/
 .cursorindexingignore
 
 
-# ======================================================
-# GOOGLE / CREDENCIALES
-# ======================================================
+
+# ============================================================
+# GOOGLE / SECRETOS / CREDENCIALES
+# ============================================================
 
 .secrets/
 *.token.json
+**/.secrets/
+
+
+google_drive_client_secret.json
+google_drive_token.json
+
+# Variables de entorno
+.env
+.env.*
+!.env.example
