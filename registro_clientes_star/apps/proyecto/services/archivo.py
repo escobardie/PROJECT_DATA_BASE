@@ -12,6 +12,12 @@ from apps.proyecto.models import (
     ProyectoArchivo,
 )
 
+from .google_drive import (
+    GoogleDriveServiceError,
+    eliminar_archivo_drive,
+    subir_archivo_proyecto_drive,
+)
+
 from apps.usuarios.models import Usuario
 
 
@@ -308,6 +314,234 @@ def _validar_archivo_subido(
             }
         )
 
+
+# ======================================================
+# ADJUNTAR ARCHIVO GOOGLE DRIVE
+# ======================================================
+
+
+def adjuntar_archivo_google_drive_proyecto(
+    *,
+    proyecto,
+    usuario,
+    archivo,
+    descripcion="",
+    fecha_documento=None,
+):
+    """
+    Adjunta un documento de Google Drive a un Proyecto.
+
+    Flujo:
+
+    1. valida Proyecto y usuario;
+    2. valida estado documental;
+    3. sube el archivo a Google Drive;
+    4. vuelve a validar el Proyecto bajo bloqueo;
+    5. crea ProyectoArchivo con referencia a Drive.
+
+    El archivo NO queda almacenado localmente
+    mediante FileField.
+    """
+
+    # ==================================================
+    # VALIDACIONES PREVIAS
+    # ==================================================
+
+    _validar_proyecto_guardado(
+        proyecto
+    )
+
+    _validar_usuario(
+        usuario
+    )
+
+    _validar_gestion_documental(
+        proyecto
+    )
+
+    if archivo is None:
+        raise ValidationError(
+            {
+                "archivo": _(
+                    "Debe seleccionar un archivo."
+                )
+            }
+        )
+
+    nombre_archivo = str(
+        getattr(
+            archivo,
+            "name",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not nombre_archivo:
+        raise ValidationError(
+            {
+                "archivo": _(
+                    "El archivo seleccionado "
+                    "no posee un nombre válido."
+                )
+            }
+        )
+
+    tamaño = getattr(
+        archivo,
+        "size",
+        None,
+    )
+
+    if tamaño == 0:
+        raise ValidationError(
+            {
+                "archivo": _(
+                    "No puede adjuntar "
+                    "un archivo vacío."
+                )
+            }
+        )
+
+    descripcion = str(
+        descripcion
+        or ""
+    ).strip()
+
+    if fecha_documento is None:
+        fecha_documento = timezone.now()
+
+    # ==================================================
+    # SUBIR A GOOGLE DRIVE
+    # ==================================================
+    #
+    # Importante:
+    #
+    # No mantenemos una transacción SQL abierta
+    # durante la comunicación con Google.
+    # ==================================================
+
+    resultado_drive = (
+        subir_archivo_proyecto_drive(
+            proyecto=proyecto,
+            archivo=archivo,
+        )
+    )
+
+    drive_file_id = (
+        resultado_drive.get(
+            "id",
+            "",
+        )
+    )
+
+    # ==================================================
+    # REGISTRAR EN BASE DE DATOS
+    # ==================================================
+
+    try:
+
+        with transaction.atomic():
+
+            proyecto_bloqueado = (
+                _bloquear_proyecto(
+                    proyecto
+                )
+            )
+
+            # El Proyecto pudo cambiar mientras
+            # Google realizaba la subida.
+            _validar_gestion_documental(
+                proyecto_bloqueado
+            )
+
+            archivo_proyecto = (
+                ProyectoArchivo(
+                    proyecto=proyecto_bloqueado,
+                    usuario=usuario,
+
+                    origen=(
+                        ProyectoArchivo
+                        .Origen
+                        .GOOGLE_DRIVE
+                    ),
+
+                    fecha_documento=(
+                        fecha_documento
+                    ),
+
+                    # No existe archivo local.
+                    archivo="",
+
+                    drive_file_id=(
+                        drive_file_id
+                    ),
+
+                    drive_nombre=(
+                        resultado_drive.get(
+                            "name",
+                            nombre_archivo,
+                        )
+                    ),
+
+                    drive_mime_type=(
+                        resultado_drive.get(
+                            "mimeType",
+                            "",
+                        )
+                    ),
+
+                    drive_web_view_link=(
+                        resultado_drive.get(
+                            "webViewLink",
+                            "",
+                        )
+                    ),
+
+                    descripcion=descripcion,
+
+                    is_active=True,
+
+                    fecha_retiro=None,
+                    usuario_retiro=None,
+                    motivo_retiro="",
+                )
+            )
+
+            archivo_proyecto.full_clean()
+
+            archivo_proyecto.save()
+
+    except Exception:
+
+        # ==============================================
+        # COMPENSACIÓN DRIVE
+        # ==============================================
+        #
+        # Si Drive creó correctamente el archivo pero
+        # MySQL falló, intentamos retirar de Drive
+        # el documento que quedó sin relación.
+        # ==============================================
+
+        if drive_file_id:
+
+            try:
+
+                eliminar_archivo_drive(
+                    drive_file_id
+                )
+
+            except (
+                GoogleDriveServiceError,
+                ValidationError,
+            ):
+                # Conservamos la excepción original
+                # producida al registrar ProyectoArchivo.
+                pass
+
+        raise
+
+    return archivo_proyecto
 
 # ======================================================
 # ADJUNTAR ARCHIVO

@@ -559,8 +559,7 @@
 
 <div
     id="content-main"
-    class="gestion-archivos"
->
+    class="gestion-archivos">
 
 
     {# ================================================== #}
@@ -675,6 +674,100 @@
 
     </div>
 
+    {# ====================================================== #}
+    {# GOOGLE DRIVE                                           #}
+    {# ====================================================== #}
+
+    <div
+        class="module"
+        style="margin-bottom: 24px;">
+
+        <div
+            style="
+                padding: 14px 18px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 20px;
+                flex-wrap: wrap;
+            "
+        >
+
+            <div>
+
+                <strong>
+                    Google Drive
+                </strong>
+
+                <div
+                    class="archivo-help"
+                    style="margin-top: 5px;"
+                >
+
+                    {% if google_drive_conectado %}
+
+                        Conectado y disponible para
+                        documentos del Proyecto.
+
+                    {% else %}
+
+                        Google Drive todavía no está
+                        conectado con el sistema.
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+
+            <div
+                style="
+                    display: flex;
+                    gap: 8px;
+                    align-items: center;
+                    flex-wrap: wrap;
+                "
+            >
+
+                {% if google_drive_conectado %}
+
+                    <span class="archivo-badge">
+                        Conectado
+                    </span>
+
+
+                    {% if google_drive_carpeta_url %}
+
+                        <a
+                            href="{{ google_drive_carpeta_url }}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="button"
+                        >
+                            {% translate "Abrir carpeta del Proyecto en Drive" %}
+                        </a>
+
+                    {% endif %}
+
+
+                {% elif puede_conectar_google_drive %}
+
+                    <a
+                        href="{% url 'admin:proyecto_proyecto_google_drive_conectar' %}?proyecto={{ proyecto.pk }}"
+                        class="button"
+                    >
+                        {% translate "Conectar Google Drive" %}
+                    </a>
+
+                {% endif %}
+
+            </div>
+
+        </div>
+
+    </div>
+
 
     {# ================================================== #}
     {# ADJUNTAR ARCHIVO                                   #}
@@ -746,6 +839,37 @@
 
                     <div class="archivo-form-grid">
 
+                        {# ============================== #}
+                        {# ORIGEN                         #}
+                        {# ============================== #}
+
+                        <div
+                            class="
+                                archivo-form-group
+                                full-width
+                            "
+                        >
+
+                            {{ form.origen.errors }}
+
+                            <label>
+                                {{ form.origen.label }}
+                            </label>
+
+                            {{ form.origen }}
+
+                            <div class="archivo-help">
+
+                                Archivo local almacena el documento
+                                dentro del sistema.
+
+                                Google Drive permite mantener el
+                                documento en Drive para su posterior
+                                edición y colaboración.
+
+                            </div>
+
+                        </div>
 
                         {# ============================== #}
                         {# ARCHIVO                        #}
@@ -1025,16 +1149,46 @@
 
                                         {% if fila.puede_ver %}
 
-                                            <a
-                                                href="{% url 'admin:proyecto_proyecto_descargar_archivo' proyecto.pk archivo_proyecto.pk %}"
-                                                class="button archivo-descarga"
-                                            >
-                                                {% translate "Descargar" %}
-                                            </a>
+
+                                            {# ============================================== #}
+                                            {# ARCHIVO LOCAL                                  #}
+                                            {# ============================================== #}
+
+                                            {% if archivo_proyecto.es_local %}
+
+                                                <a
+                                                    href="{% url 'admin:proyecto_proyecto_descargar_archivo' proyecto.pk archivo_proyecto.pk %}"
+                                                    class="button archivo-descarga"
+                                                >
+                                                    {% translate "Descargar" %}
+                                                </a>
+
+                                            {% endif %}
+
+
+                                            {# ============================================== #}
+                                            {# GOOGLE DRIVE                                   #}
+                                            {# ============================================== #}
+
+                                            {% if archivo_proyecto.es_google_drive %}
+
+                                                {% if archivo_proyecto.drive_web_view_link %}
+
+                                                    <a
+                                                        href="{{ archivo_proyecto.drive_web_view_link }}"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        class="button archivo-descarga"
+                                                    >
+                                                        {% translate "Abrir en Google Drive" %}
+                                                    </a>
+
+                                                {% endif %}
+
+                                            {% endif %}
+
 
                                         {% endif %}
-
-                                    </td>
 
 
                                     {# ========================== #}

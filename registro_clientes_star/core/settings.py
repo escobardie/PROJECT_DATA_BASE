@@ -144,3 +144,29 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 LOGIN_REDIRECT_URL = '/'
+
+
+
+# ======================================================
+# GOOGLE DRIVE
+# ======================================================
+
+GOOGLE_DRIVE_CLIENT_SECRETS_FILE = (
+    BASE_DIR
+    / ".secrets"
+    / "google_drive_client_secret.json"
+)
+
+GOOGLE_DRIVE_TOKEN_FILE = (
+    BASE_DIR
+    / ".secrets"
+    / "google_drive_token.json"
+)
+
+GOOGLE_DRIVE_SCOPES = [
+    "https://www.googleapis.com/auth/drive.file",
+]
+
+GOOGLE_DRIVE_ROOT_FOLDER_NAME = (
+    "REGISTRO CLIENTES STAR"
+)

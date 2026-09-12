@@ -12,30 +12,35 @@ class ProyectoArchivo(BaseModel):
     """
     Representa un archivo asociado a un Proyecto.
 
-    Puede corresponder a:
+    El documento puede almacenarse en:
 
-    - documentación comercial;
-    - presupuestos;
-    - propuestas;
-    - fotografías;
-    - planos;
-    - memorias técnicas;
-    - aprobaciones;
-    - actas;
-    - informes;
-    - documentación administrativa;
-    - cualquier otra evidencia relacionada
-      con el proyecto.
+    - almacenamiento local administrado por Django;
+    - Google Drive.
 
     Los archivos forman parte del historial documental
-    del proyecto.
+    del Proyecto.
 
     Una vez registrados no deben modificarse ni eliminarse
-    físicamente desde el flujo funcional normal.
+    directamente desde el flujo funcional.
 
     Si un documento deja de ser válido debe retirarse
     lógicamente conservando toda su trazabilidad.
     """
+
+    # ======================================================
+    # ORIGEN DEL ARCHIVO
+    # ======================================================
+
+    class Origen(models.TextChoices):
+        LOCAL = (
+            "LOCAL",
+            _("Archivo local"),
+        )
+
+        GOOGLE_DRIVE = (
+            "GOOGLE_DRIVE",
+            _("Google Drive"),
+        )
 
     # ======================================================
     # RELACIONES
@@ -61,6 +66,22 @@ class ProyectoArchivo(BaseModel):
     )
 
     # ======================================================
+    # ORIGEN
+    # ======================================================
+
+    origen = models.CharField(
+        max_length=20,
+        choices=Origen.choices,
+        default=Origen.LOCAL,
+        db_index=True,
+        verbose_name=_("Origen"),
+        help_text=_(
+            "Indica dónde se encuentra almacenado "
+            "el documento."
+        ),
+    )
+
+    # ======================================================
     # FECHA FUNCIONAL
     # ======================================================
 
@@ -75,17 +96,66 @@ class ProyectoArchivo(BaseModel):
     )
 
     # ======================================================
-    # ARCHIVO
+    # ARCHIVO LOCAL
     # ======================================================
 
     archivo = models.FileField(
         upload_to="proyectos/%Y/%m/",
-        verbose_name=_("Archivo"),
+        blank=True,
+        default="",
+        verbose_name=_("Archivo local"),
         help_text=_(
-            "Documento, fotografía, plano, informe "
-            "o archivo relacionado con el proyecto."
+            "Documento almacenado localmente "
+            "por la aplicación."
         ),
     )
+
+    # ======================================================
+    # GOOGLE DRIVE
+    # ======================================================
+
+    drive_file_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        db_index=True,
+        editable=False,
+        verbose_name=_("ID de Google Drive"),
+        help_text=_(
+            "Identificador único asignado por Google Drive."
+        ),
+    )
+
+    drive_nombre = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        editable=False,
+        verbose_name=_("Nombre en Google Drive"),
+    )
+
+    drive_mime_type = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        editable=False,
+        verbose_name=_("Tipo MIME de Google Drive"),
+    )
+
+    drive_web_view_link = models.URLField(
+        max_length=1000,
+        blank=True,
+        default="",
+        editable=False,
+        verbose_name=_("Enlace de Google Drive"),
+        help_text=_(
+            "Enlace para abrir el documento en Google Drive."
+        ),
+    )
+
+    # ======================================================
+    # DESCRIPCIÓN
+    # ======================================================
 
     descripcion = models.CharField(
         max_length=150,
@@ -107,10 +177,6 @@ class ProyectoArchivo(BaseModel):
         null=True,
         editable=False,
         verbose_name=_("Fecha de retiro"),
-        help_text=_(
-            "Fecha y hora en que el archivo "
-            "fue retirado del flujo documental."
-        ),
     )
 
     usuario_retiro = models.ForeignKey(
@@ -121,10 +187,6 @@ class ProyectoArchivo(BaseModel):
         null=True,
         editable=False,
         verbose_name=_("Retirado por"),
-        help_text=_(
-            "Usuario que retiró formalmente "
-            "el archivo."
-        ),
     )
 
     motivo_retiro = models.CharField(
@@ -133,10 +195,6 @@ class ProyectoArchivo(BaseModel):
         default="",
         editable=False,
         verbose_name=_("Motivo del retiro"),
-        help_text=_(
-            "Motivo por el cual el archivo dejó "
-            "de considerarse activo."
-        ),
     )
 
     # ======================================================
@@ -173,6 +231,13 @@ class ProyectoArchivo(BaseModel):
                 ],
                 name="idx_proy_arch_fec",
             ),
+            models.Index(
+                fields=[
+                    "proyecto",
+                    "origen",
+                ],
+                name="idx_proy_arch_ori",
+            ),
         ]
 
     # ======================================================
@@ -181,7 +246,12 @@ class ProyectoArchivo(BaseModel):
 
     def clean(self):
         """
-        Mantiene la consistencia del historial documental.
+        Mantiene consistencia entre:
+
+        - archivo local;
+        - archivo en Google Drive;
+        - estado documental;
+        - información de retiro.
         """
 
         super().clean()
@@ -189,7 +259,7 @@ class ProyectoArchivo(BaseModel):
         errores = {}
 
         # ==================================================
-        # NORMALIZAR DESCRIPCIÓN
+        # NORMALIZAR TEXTOS
         # ==================================================
 
         self.descripcion = (
@@ -197,10 +267,88 @@ class ProyectoArchivo(BaseModel):
             or ""
         ).strip()
 
+        self.drive_file_id = (
+            self.drive_file_id
+            or ""
+        ).strip()
+
+        self.drive_nombre = (
+            self.drive_nombre
+            or ""
+        ).strip()
+
+        self.drive_mime_type = (
+            self.drive_mime_type
+            or ""
+        ).strip()
+
+        self.drive_web_view_link = (
+            self.drive_web_view_link
+            or ""
+        ).strip()
+
         self.motivo_retiro = (
             self.motivo_retiro
             or ""
         ).strip()
+
+        # ==================================================
+        # ARCHIVO LOCAL
+        # ==================================================
+
+        if self.origen == self.Origen.LOCAL:
+
+            if not self.archivo:
+                errores["archivo"] = _(
+                    "Debe seleccionar un archivo local."
+                )
+
+            if (
+                self.drive_file_id
+                or self.drive_nombre
+                or self.drive_mime_type
+                or self.drive_web_view_link
+            ):
+                errores["origen"] = _(
+                    "Un archivo local no puede contener "
+                    "información de Google Drive."
+                )
+
+        # ==================================================
+        # GOOGLE DRIVE
+        # ==================================================
+
+        elif self.origen == self.Origen.GOOGLE_DRIVE:
+
+            if self.archivo:
+                errores["archivo"] = _(
+                    "Un archivo de Google Drive no debe "
+                    "almacenarse también como archivo local."
+                )
+
+            if not self.drive_file_id:
+                errores["drive_file_id"] = _(
+                    "Debe existir un identificador "
+                    "de Google Drive."
+                )
+
+            if not self.drive_nombre:
+                errores["drive_nombre"] = _(
+                    "Debe existir un nombre "
+                    "para el archivo de Google Drive."
+                )
+
+            if not self.drive_web_view_link:
+                errores["drive_web_view_link"] = _(
+                    "Debe existir un enlace para abrir "
+                    "el archivo en Google Drive."
+                )
+
+        else:
+
+            errores["origen"] = _(
+                "El origen del archivo no es válido."
+            )
 
         # ==================================================
         # ARCHIVO RETIRADO
@@ -222,8 +370,7 @@ class ProyectoArchivo(BaseModel):
 
             if not self.motivo_retiro:
                 errores["motivo_retiro"] = _(
-                    "Debe indicar el motivo del retiro "
-                    "del archivo."
+                    "Debe indicar el motivo del retiro."
                 )
 
         # ==================================================
@@ -273,9 +420,18 @@ class ProyectoArchivo(BaseModel):
     @property
     def nombre_archivo(self):
         """
-        Devuelve únicamente el nombre del archivo
-        sin incluir la ruta de almacenamiento.
+        Devuelve el nombre visible del documento
+        independientemente de su origen.
         """
+
+        if (
+            self.origen
+            == self.Origen.GOOGLE_DRIVE
+        ):
+            return (
+                self.drive_nombre
+                or _("Archivo de Google Drive")
+            )
 
         if not self.archivo:
             return _("Archivo sin cargar")
@@ -286,16 +442,39 @@ class ProyectoArchivo(BaseModel):
         )
 
     @property
+    def es_local(self):
+        """
+        Indica si el documento utiliza
+        almacenamiento local.
+        """
+
+        return (
+            self.origen
+            == self.Origen.LOCAL
+        )
+
+    @property
+    def es_google_drive(self):
+        """
+        Indica si el documento está almacenado
+        en Google Drive.
+        """
+
+        return (
+            self.origen
+            == self.Origen.GOOGLE_DRIVE
+        )
+
+    @property
     def esta_disponible(self):
         """
         Indica si el documento continúa activo
-        dentro del historial del proyecto.
+        dentro del historial del Proyecto.
         """
 
         return bool(
             self.is_active
         )
-
 
     # ======================================================
     # REPRESENTACIÓN

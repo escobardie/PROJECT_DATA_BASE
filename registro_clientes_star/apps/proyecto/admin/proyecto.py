@@ -35,6 +35,14 @@ from apps.proyecto.services import (
     registrar_recepcion_proyecto,
     registrar_rechazo_proyecto,
     retirar_archivo_proyecto,
+    adjuntar_archivo_google_drive_proyecto,
+    obtener_o_crear_carpeta_proyecto_drive,
+
+    GoogleDriveServiceError,
+    generar_url_autorizacion_drive,
+    google_drive_esta_conectado,
+    obtener_o_crear_carpeta_raiz_drive,
+    procesar_callback_oauth_drive,
 )
 
 from apps.usuarios.permissions import (
@@ -72,69 +80,107 @@ from .proyecto_archivo import ProyectoArchivoInline
 # ======================================================
 
 
-class AdjuntarArchivoProyectoForm(forms.Form):
+class AdjuntarArchivoProyectoForm(
+    forms.Form
+):
     """
-    Formulario administrativo utilizado para
-    incorporar documentación a un Proyecto.
+    Formulario utilizado para registrar
+    documentación de un Proyecto.
 
-    El usuario que realiza la carga se obtiene
-    automáticamente desde request.user.
+    Permite elegir entre:
+
+    - almacenamiento local;
+    - Google Drive.
     """
+
+    origen = forms.ChoiceField(
+        choices=(),
+        initial=(
+            ProyectoArchivo
+            .Origen
+            .LOCAL
+        ),
+        required=True,
+        widget=forms.RadioSelect,
+        label=_("Origen"),
+    )
 
     archivo = forms.FileField(
         required=True,
         label=_("Archivo"),
-        help_text=_(
-            "Seleccione el documento, fotografía, plano, "
-            "informe o evidencia que desea adjuntar."
-        ),
     )
 
-    fecha_documento = forms.SplitDateTimeField(
-        required=False,
-        label=_("Fecha del documento"),
-        input_date_formats=[
-            "%Y-%m-%d",
-        ],
-        input_time_formats=[
-            "%H:%M",
-            "%H:%M:%S",
-        ],
-        widget=forms.SplitDateTimeWidget(
-            date_format="%Y-%m-%d",
-            time_format="%H:%M",
-            date_attrs={
-                "type": "date",
-            },
-            time_attrs={
-                "type": "time",
-                "step": "60",
-            },
-        ),
-        help_text=_(
-            "Fecha y hora correspondiente al documento. "
-            "Si se deja vacía se utilizará la fecha "
-            "y hora actuales."
-        ),
+    fecha_documento = (
+        forms.SplitDateTimeField(
+            required=False,
+            label=_("Fecha del documento"),
+            input_date_formats=[
+                "%Y-%m-%d",
+            ],
+            input_time_formats=[
+                "%H:%M",
+                "%H:%M:%S",
+            ],
+            widget=forms.SplitDateTimeWidget(
+                date_attrs={
+                    "type": "date",
+                },
+                time_attrs={
+                    "type": "time",
+                    "step": "60",
+                },
+            ),
+        )
     )
 
     descripcion = forms.CharField(
         required=False,
-        label=_("Descripción"),
         max_length=150,
+        label=_("Descripción"),
         widget=forms.Textarea(
             attrs={
                 "rows": 3,
-                "placeholder": _(
-                    "Descripción breve del documento..."
+                "placeholder": (
+                    "Descripción breve "
+                    "del documento..."
                 ),
             }
         ),
-        help_text=_(
-            "Descripción breve del contenido del archivo."
-        ),
     )
 
+    def __init__(
+        self,
+        *args,
+        google_drive_conectado=False,
+        **kwargs,
+    ):
+        super().__init__(
+            *args,
+            **kwargs,
+        )
+
+        opciones = [
+            (
+                ProyectoArchivo
+                .Origen
+                .LOCAL,
+                _("Archivo local"),
+            ),
+        ]
+
+        if google_drive_conectado:
+            opciones.append(
+                (
+                    ProyectoArchivo
+                    .Origen
+                    .GOOGLE_DRIVE,
+                    _("Google Drive"),
+                )
+            )
+
+        self.fields[
+            "origen"
+        ].choices = opciones
 
 # ======================================================
 # FORMULARIO - RETIRAR ARCHIVO
@@ -191,6 +237,21 @@ class RetirarArchivoProyectoForm(forms.Form):
         ),
     )
 
+
+# ======================================================
+# GOOGLE DRIVE - OAUTH
+# ======================================================
+
+GOOGLE_DRIVE_OAUTH_STATE_SESSION_KEY = (
+    "proyecto_google_drive_oauth_state"
+)
+
+GOOGLE_DRIVE_OAUTH_PROJECT_SESSION_KEY = (
+    "proyecto_google_drive_oauth_project"
+)
+GOOGLE_DRIVE_OAUTH_CODE_VERIFIER_SESSION_KEY = (
+    "proyecto_google_drive_oauth_code_verifier"
+)
 
 # ======================================================
 # PROYECTO ADMIN
@@ -818,6 +879,32 @@ class ProyectoAdmin(admin.ModelAdmin):
         urls = super().get_urls()
 
         custom_urls = [
+
+            # ==================================================
+            # GOOGLE DRIVE - OAUTH
+            # ==================================================
+
+            path(
+                "google-drive/conectar/",
+                self.admin_site.admin_view(
+                    self.google_drive_conectar_view
+                ),
+                name=(
+                    "proyecto_proyecto_"
+                    "google_drive_conectar"
+                ),
+            ),
+
+            path(
+                "google-drive/oauth/callback/",
+                self.admin_site.admin_view(
+                    self.google_drive_oauth_callback_view
+                ),
+                name=(
+                    "proyecto_proyecto_"
+                    "google_drive_oauth_callback"
+                ),
+            ),
 
             # ==================================================
             # ARCHIVOS
@@ -2173,6 +2260,47 @@ class ProyectoAdmin(admin.ModelAdmin):
                 proyecto,
             )
         )
+        
+        # ==================================================
+        # GOOGLE
+        # ==================================================
+
+        google_drive_conectado = (
+            google_drive_esta_conectado()
+        )
+
+        # ==================================================
+        # CARPETA GOOGLE DRIVE DEL PROYECTO
+        # ==================================================
+
+        google_drive_carpeta_url = None
+
+        if google_drive_conectado:
+
+            try:
+
+                carpeta_drive = (
+                    obtener_o_crear_carpeta_proyecto_drive(
+                        proyecto
+                    )
+                )
+
+                google_drive_carpeta_url = (
+                    carpeta_drive.get(
+                        "webViewLink"
+                    )
+                )
+
+            except GoogleDriveServiceError as exc:
+
+                messages.warning(
+                    request,
+                    (
+                        "Google Drive está conectado, "
+                        "pero no fue posible obtener la "
+                        f"carpeta del Proyecto: {exc}"
+                    ),
+                )
 
         # ==================================================
         # FORMULARIO
@@ -2181,6 +2309,9 @@ class ProyectoAdmin(admin.ModelAdmin):
         form = AdjuntarArchivoProyectoForm(
             request.POST or None,
             request.FILES or None,
+            google_drive_conectado=(
+                google_drive_conectado
+            ),
         )
 
         # ==================================================
@@ -2194,26 +2325,68 @@ class ProyectoAdmin(admin.ModelAdmin):
 
             if form.is_valid():
 
+                origen = (
+                    form.cleaned_data[
+                        "origen"
+                    ]
+                )
+
                 try:
-                    adjuntar_archivo_proyecto(
-                        proyecto=proyecto,
-                        usuario=request.user,
-                        archivo=(
-                            form.cleaned_data[
-                                "archivo"
-                            ]
-                        ),
-                        descripcion=(
-                            form.cleaned_data[
-                                "descripcion"
-                            ]
-                        ),
-                        fecha_documento=(
-                            form.cleaned_data[
-                                "fecha_documento"
-                            ]
-                        ),
-                    )
+
+                    # ==================================================
+                    # GOOGLE DRIVE
+                    # ==================================================
+
+                    if (
+                        origen
+                        == ProyectoArchivo.Origen.GOOGLE_DRIVE
+                    ):
+
+                        adjuntar_archivo_google_drive_proyecto(
+                            proyecto=proyecto,
+                            usuario=request.user,
+                            archivo=(
+                                form.cleaned_data[
+                                    "archivo"
+                                ]
+                            ),
+                            descripcion=(
+                                form.cleaned_data[
+                                    "descripcion"
+                                ]
+                            ),
+                            fecha_documento=(
+                                form.cleaned_data[
+                                    "fecha_documento"
+                                ]
+                            ),
+                        )
+
+                    # ==================================================
+                    # LOCAL
+                    # ==================================================
+
+                    else:
+
+                        adjuntar_archivo_proyecto(
+                            proyecto=proyecto,
+                            usuario=request.user,
+                            archivo=(
+                                form.cleaned_data[
+                                    "archivo"
+                                ]
+                            ),
+                            descripcion=(
+                                form.cleaned_data[
+                                    "descripcion"
+                                ]
+                            ),
+                            fecha_documento=(
+                                form.cleaned_data[
+                                    "fecha_documento"
+                                ]
+                            ),
+                        )
 
                 except ValidationError as exc:
 
@@ -2226,41 +2399,63 @@ class ProyectoAdmin(admin.ModelAdmin):
                             exc.message_dict.items()
                         ):
 
-                            campo_formulario = (
-                                campo
-                                if campo in form.fields
-                                else None
-                            )
+                            if campo in form.fields:
 
-                            for error in errores:
-                                form.add_error(
-                                    campo_formulario,
-                                    error,
-                                )
+                                for error in errores:
+                                    form.add_error(
+                                        campo,
+                                        error,
+                                    )
+
+                            else:
+
+                                for error in errores:
+                                    form.add_error(
+                                        None,
+                                        error,
+                                    )
 
                     else:
 
-                        for error in exc.messages:
-                            form.add_error(
-                                None,
-                                error,
-                            )
+                        form.add_error(
+                            None,
+                            str(exc),
+                        )
+
+                except GoogleDriveServiceError as exc:
+
+                    form.add_error(
+                        None,
+                        str(exc),
+                    )
 
                 else:
 
-                    self.message_user(
-                        request,
-                        _(
-                            "Archivo adjuntado "
-                            "correctamente al proyecto."
-                        ),
-                        level=messages.SUCCESS,
-                    )
+                    if (
+                        origen
+                        == ProyectoArchivo.Origen.GOOGLE_DRIVE
+                    ):
 
-                    return (
-                        self._redirect_gestion_archivos(
-                            proyecto
+                        messages.success(
+                            request,
+                            _(
+                                "El archivo fue registrado "
+                                "correctamente en Google Drive."
+                            ),
                         )
+
+                    else:
+
+                        messages.success(
+                            request,
+                            _(
+                                "El archivo fue adjuntado "
+                                "correctamente."
+                            ),
+                        )
+
+                    return self._redirect_gestion_archivos(
+                        proyecto
                     )
 
         # ==================================================
@@ -2359,6 +2554,22 @@ class ProyectoAdmin(admin.ModelAdmin):
                 ),
                 current_app=self.admin_site.name,
             ),
+
+            "google_drive_conectado": (
+                google_drive_esta_conectado()
+            ),
+            
+            "google_drive_carpeta_url": (
+                google_drive_carpeta_url
+            ),
+
+            "puede_conectar_google_drive": (
+                request.user.is_active
+                and request.user.is_superuser
+            ),
+
+
+
         }
 
         return TemplateResponse(
@@ -2620,6 +2831,337 @@ class ProyectoAdmin(admin.ModelAdmin):
                 archivo_proyecto.nombre_archivo
             ),
         )
+
+    # ======================================================
+    # GOOGLE DRIVE - CONECTAR
+    # ======================================================
+
+    def google_drive_conectar_view(
+        self,
+        request,
+    ):
+        """
+        Inicia la autorización OAuth de Google Drive.
+
+        La conexión de la cuenta Google es una operación
+        administrativa global, por lo que solamente puede
+        realizarla un superusuario.
+
+        Si la conexión se inició desde un Proyecto,
+        conserva su ID en sesión para regresar a la
+        Gestión de archivos después del callback.
+        """
+
+        # ==================================================
+        # SEGURIDAD
+        # ==================================================
+
+        if (
+            not request.user.is_active
+            or not request.user.is_superuser
+        ):
+            raise PermissionDenied
+
+        # ==================================================
+        # CALLBACK
+        # ==================================================
+
+        callback_url = reverse(
+            (
+                "admin:"
+                "proyecto_proyecto_"
+                "google_drive_oauth_callback"
+            ),
+            current_app=self.admin_site.name,
+        )
+
+        redirect_uri = (
+            request.build_absolute_uri(
+                callback_url
+            )
+        )
+
+        # ==================================================
+        # GENERAR AUTORIZACIÓN
+        # ==================================================
+
+        try:
+
+            authorization_url, state, code_verifier = (
+                generar_url_autorizacion_drive(
+                    redirect_uri=redirect_uri,
+                )
+            )
+
+        except GoogleDriveServiceError as exc:
+
+            messages.error(
+                request,
+                str(exc),
+            )
+
+            return self._redirect_changelist()
+
+        # ==================================================
+        # GUARDAR STATE + PKCE
+        # ==================================================
+
+        request.session[
+            GOOGLE_DRIVE_OAUTH_STATE_SESSION_KEY
+        ] = state
+
+        request.session[
+            GOOGLE_DRIVE_OAUTH_CODE_VERIFIER_SESSION_KEY
+        ] = code_verifier
+
+        # ==================================================
+        # PROYECTO DE ORIGEN
+        # ==================================================
+
+        proyecto_id = (
+            request.GET.get(
+                "proyecto"
+            )
+        )
+
+        if proyecto_id:
+
+            request.session[
+                GOOGLE_DRIVE_OAUTH_PROJECT_SESSION_KEY
+            ] = str(
+                proyecto_id
+            )
+
+        else:
+
+            request.session.pop(
+                GOOGLE_DRIVE_OAUTH_PROJECT_SESSION_KEY,
+                None,
+            )
+
+        # ==================================================
+        # GOOGLE
+        # ==================================================
+
+        return HttpResponseRedirect(
+            authorization_url
+        )
+
+    # ======================================================
+    # GOOGLE DRIVE - CALLBACK OAUTH
+    # ======================================================
+
+    def google_drive_oauth_callback_view(
+        self,
+        request,
+    ):
+        """
+        Procesa la respuesta OAuth enviada por Google.
+
+        Valida:
+
+        - usuario administrativo;
+        - error devuelto por Google;
+        - parámetro state;
+        - intercambio del código;
+        - conexión real con Drive.
+
+        Después de autorizar crea/obtiene la carpeta
+        raíz de documentos de la aplicación.
+        """
+
+        # ==================================================
+        # SEGURIDAD
+        # ==================================================
+
+        if (
+            not request.user.is_active
+            or not request.user.is_superuser
+        ):
+            raise PermissionDenied
+
+        # ==================================================
+        # PROYECTO DE RETORNO
+        # ==================================================
+
+        proyecto_id = (
+            request.session.pop(
+                GOOGLE_DRIVE_OAUTH_PROJECT_SESSION_KEY,
+                None,
+            )
+        )
+
+        # ==================================================
+        # ERROR DEVUELTO POR GOOGLE
+        # ==================================================
+
+        error_google = (
+            request.GET.get(
+                "error"
+            )
+        )
+
+        if error_google:
+
+            request.session.pop(
+                GOOGLE_DRIVE_OAUTH_STATE_SESSION_KEY,
+                None,
+            )
+
+            request.session.pop(
+                GOOGLE_DRIVE_OAUTH_CODE_VERIFIER_SESSION_KEY,
+                None,
+            )
+
+            messages.error(
+                request,
+                (
+                    "La autorización de Google Drive "
+                    f"no se completó: {error_google}."
+                ),
+            )
+
+            return self._redirect_changelist()
+
+        # ==================================================
+        # STATE ESPERADO
+        # ==================================================
+
+        state_esperado = (
+            request.session.pop(
+                GOOGLE_DRIVE_OAUTH_STATE_SESSION_KEY,
+                None,
+            )
+        )
+
+        state_recibido = (
+            request.GET.get(
+                "state"
+            )
+        )
+        # ==================================================
+        # PKCE
+        # ==================================================
+
+        code_verifier = (
+            request.session.pop(
+                GOOGLE_DRIVE_OAUTH_CODE_VERIFIER_SESSION_KEY,
+                None,
+            )
+        )
+
+        if (
+            not state_esperado
+            or not state_recibido
+            or state_recibido != state_esperado
+        ):
+
+            messages.error(
+                request,
+                (
+                    "La respuesta OAuth de Google Drive "
+                    "no superó la validación de seguridad."
+                ),
+            )
+
+            return self._redirect_changelist()
+
+        if not code_verifier:
+
+            messages.error(
+                request,
+                (
+                    "No se encontró el código de seguridad "
+                    "PKCE utilizado para conectar Google Drive."
+                ),
+            )
+
+            return self._redirect_changelist()
+
+        # ==================================================
+        # CALLBACK URI
+        # ==================================================
+
+        callback_url = reverse(
+            (
+                "admin:"
+                "proyecto_proyecto_"
+                "google_drive_oauth_callback"
+            ),
+            current_app=self.admin_site.name,
+        )
+
+        redirect_uri = (
+            request.build_absolute_uri(
+                callback_url
+            )
+        )
+
+        # ==================================================
+        # PROCESAR GOOGLE OAUTH
+        # ==================================================
+
+        try:
+
+            procesar_callback_oauth_drive(
+                redirect_uri=redirect_uri,
+                authorization_response=(
+                    request.build_absolute_uri()
+                ),
+                state=state_esperado,
+                code_verifier=code_verifier,
+            )
+
+            # ==============================================
+            # PRUEBA REAL DE DRIVE
+            # ==============================================
+
+            carpeta_raiz = (
+                obtener_o_crear_carpeta_raiz_drive()
+            )
+
+        except GoogleDriveServiceError as exc:
+
+            messages.error(
+                request,
+                str(exc),
+            )
+
+            return self._redirect_changelist()
+
+        # ==================================================
+        # OK
+        # ==================================================
+
+        messages.success(
+            request,
+            (
+                "Google Drive fue conectado correctamente. "
+                "Carpeta principal: "
+                f"{carpeta_raiz.get('name', 'Google Drive')}."
+            ),
+        )
+
+        # ==================================================
+        # REGRESAR AL PROYECTO
+        # ==================================================
+
+        if proyecto_id:
+
+            proyecto = (
+                self.get_queryset(request)
+                .filter(
+                    pk=proyecto_id
+                )
+                .first()
+            )
+
+            if proyecto is not None:
+                return self._redirect_gestion_archivos(
+                    proyecto
+                )
+
+        return self._redirect_changelist()
 
     # ======================================================
     # GUARDADO DE INLINES MEDIANTE SERVICES
