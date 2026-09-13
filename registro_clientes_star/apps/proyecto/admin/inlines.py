@@ -1,7 +1,10 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
-from apps.proyecto.forms import ProyectoDetalleForm
+from apps.proyecto.forms import (
+    ProyectoDetalleForm,
+    ProyectoDetalleInlineFormSet,
+)
 from apps.proyecto.models import ProyectoDetalle
 
 from apps.usuarios.permissions import (
@@ -30,6 +33,8 @@ class ProyectoDetalleInline(admin.TabularInline):
     model = ProyectoDetalle
 
     form = ProyectoDetalleForm
+
+    formset = ProyectoDetalleInlineFormSet
 
     extra = 1
 

@@ -1,9 +1,20 @@
 from django import forms
+from django.http import JsonResponse
+
+from apps.catalogo.models import ItemCatalogo
+from apps.dispositivo.models import Dispositivo
+
+from apps.common.choices import (
+    TipoProyectoDetalleChoices,
+    UnidadMedidaChoices,
+)
+
 from django.contrib import admin, messages
 from django.core.exceptions import (
     PermissionDenied,
     ValidationError,
 )
+from decimal import Decimal
 from django.db import transaction
 from django.db.models import Count
 from django.http import (
@@ -606,7 +617,6 @@ class ProyectoAdmin(admin.ModelAdmin):
     # ======================================================
 
     inlines = (
-        ProyectoDetalleInline,
         ProyectoArchivoInline,
     )
 
@@ -881,6 +891,20 @@ class ProyectoAdmin(admin.ModelAdmin):
         custom_urls = [
 
             # ==================================================
+            # DETALLE DE PROYECTO
+            # ==================================================
+            path(
+                "detalle-origen/metadata/",
+                self.admin_site.admin_view(
+                    self.detalle_origen_metadata_view
+                ),
+                name=(
+                    "proyecto_proyecto_"
+                    "detalle_origen_metadata"
+                ),
+            ),
+
+            # ==================================================
             # GOOGLE DRIVE - OAUTH
             # ==================================================
 
@@ -946,6 +970,21 @@ class ProyectoAdmin(admin.ModelAdmin):
                 name=(
                     "proyecto_proyecto_"
                     "descargar_archivo"
+                ),
+            ),
+
+            # ==================================================
+            # DETALLES DEL PROYECTO
+            # ==================================================
+
+            path(
+                "<path:object_id>/detalles/",
+                self.admin_site.admin_view(
+                    self.gestionar_detalles_view
+                ),
+                name=(
+                    "proyecto_proyecto_"
+                    "gestionar_detalles"
                 ),
             ),
 
@@ -2071,6 +2110,17 @@ class ProyectoAdmin(admin.ModelAdmin):
                             proyecto,
                         )
                     ),
+
+                    # ==========================================
+                    # DETALLES
+                    # ==========================================
+
+                    "puede_ver_detalles_proyecto": (
+                        puede_ver_proyecto(
+                            request.user,
+                            proyecto,
+                        )
+                    ),
                 }
             )
 
@@ -3164,40 +3214,66 @@ class ProyectoAdmin(admin.ModelAdmin):
         return self._redirect_changelist()
 
     # ======================================================
-    # GUARDADO DE INLINES MEDIANTE SERVICES
+    # GESTIÓN DE DETALLES
+    # ======================================================
+
+    def _redirect_gestion_detalles(
+        self,
+        proyecto,
+    ):
+        """
+        Redirige a la pantalla de gestión
+        de detalles del Proyecto.
+        """
+
+        url = reverse(
+            "admin:proyecto_proyecto_gestionar_detalles",
+            args=(
+                proyecto.pk,
+            ),
+            current_app=self.admin_site.name,
+        )
+
+        return HttpResponseRedirect(
+            url
+        )
+
+    # ======================================================
+    # GUARDADO DE DETALLES
     # ======================================================
 
     @transaction.atomic
-    def save_formset(
+    def _guardar_formset_detalles(
         self,
+        *,
         request,
-        form,
+        proyecto,
         formset,
-        change,
     ):
         """
-        Guarda los detalles del proyecto mediante
-        los services de la app Proyecto.
+        Persiste un formset de ProyectoDetalle
+        utilizando exclusivamente los services.
 
-        Los formsets correspondientes a otros modelos
-        conservan el comportamiento estándar de Django.
+        Es utilizado tanto por el Admin tradicional
+        como por la pantalla Gestionar detalles.
         """
 
-        if formset.model is not ProyectoDetalle:
-            super().save_formset(
-                request,
-                form,
-                formset,
-                change,
-            )
-
-            return
-
-        # Obtiene instancias nuevas y modificadas
-        # sin persistirlas todavía.
         instancias = formset.save(
-            commit=False,
+            commit=False
         )
+
+        # ==================================================
+        # MAPEAR FORMULARIO -> INSTANCIA
+        # ==================================================
+
+        formularios_por_instancia = {
+            id(detalle_form.instance): detalle_form
+            for detalle_form in formset.forms
+            if hasattr(
+                detalle_form,
+                "cleaned_data",
+            )
+        }
 
         # ==================================================
         # ELIMINACIONES
@@ -3211,12 +3287,72 @@ class ProyectoAdmin(admin.ModelAdmin):
             )
 
         # ==================================================
-        # ALTAS Y MODIFICACIONES
+        # ALTAS / MODIFICACIONES
         # ==================================================
 
         for instancia in instancias:
 
+            detalle_form = (
+                formularios_por_instancia.get(
+                    id(instancia)
+                )
+            )
+
+            changed_data = set()
+
+            if detalle_form is not None:
+                changed_data = set(
+                    detalle_form.changed_data
+                )
+
+            # ==================================================
+            # CAMBIO DE ORIGEN
+            # ==================================================
+
+            cambio_origen = bool(
+                {
+                    "dispositivo",
+                    "item_catalogo",
+                }
+                & changed_data
+            )
+
+            # ==================================================
+            # DESCRIPCIÓN
+            # ==================================================
+
+            descripcion = (
+                instancia.descripcion
+            )
+
+            if (
+                cambio_origen
+                and "descripcion" not in changed_data
+            ):
+                descripcion = ""
+
+            # ==================================================
+            # PRECIO
+            # ==================================================
+
+            precio_unitario = (
+                instancia.precio_unitario
+            )
+
+            if (
+                cambio_origen
+                and "precio_unitario" not in changed_data
+            ):
+                precio_unitario = Decimal(
+                    "0.00"
+                )
+
+            # ==================================================
+            # ACTUALIZAR
+            # ==================================================
+
             if instancia.pk:
+
                 detalle_guardado = (
                     actualizar_detalle_proyecto(
                         detalle=instancia,
@@ -3226,13 +3362,13 @@ class ProyectoAdmin(admin.ModelAdmin):
                         item_catalogo=(
                             instancia.item_catalogo
                         ),
-                        descripcion=(
-                            instancia.descripcion
-                        ),
+                        descripcion=descripcion,
                         orden=instancia.orden,
-                        cantidad=instancia.cantidad,
+                        cantidad=(
+                            instancia.cantidad
+                        ),
                         precio_unitario=(
-                            instancia.precio_unitario
+                            precio_unitario
                         ),
                         descuento_importe=(
                             instancia.descuento_importe
@@ -3246,13 +3382,21 @@ class ProyectoAdmin(admin.ModelAdmin):
                         is_active=(
                             instancia.is_active
                         ),
+                        reiniciar_desde_origen=(
+                            cambio_origen
+                        ),
                     )
                 )
 
+            # ==================================================
+            # CREAR
+            # ==================================================
+
             else:
+
                 detalle_guardado = (
                     crear_detalle_proyecto(
-                        proyecto=form.instance,
+                        proyecto=proyecto,
                         dispositivo=(
                             instancia.dispositivo
                         ),
@@ -3262,8 +3406,14 @@ class ProyectoAdmin(admin.ModelAdmin):
                         descripcion=(
                             instancia.descripcion
                         ),
-                        orden=instancia.orden,
-                        cantidad=instancia.cantidad,
+
+                        # El service asigna el orden
+                        # definitivo bajo bloqueo.
+                        orden=None,
+
+                        cantidad=(
+                            instancia.cantidad
+                        ),
                         precio_unitario=(
                             instancia.precio_unitario
                         ),
@@ -3287,9 +3437,231 @@ class ProyectoAdmin(admin.ModelAdmin):
                 origen=detalle_guardado,
             )
 
-        # Actualmente ProyectoDetalle no posee M2M,
-        # pero preservamos el flujo estándar de Django.
         formset.save_m2m()
+
+
+    # ======================================================
+    # GUARDADO DE INLINES MEDIANTE SERVICES
+    # ======================================================
+
+    @transaction.atomic
+    def save_formset(
+        self,
+        request,
+        form,
+        formset,
+        change,
+    ):
+        """
+        Persiste los detalles mediante services.
+
+        Los demás formsets conservan el
+        comportamiento estándar de Django.
+        """
+
+        if formset.model is not ProyectoDetalle:
+
+            super().save_formset(
+                request,
+                form,
+                formset,
+                change,
+            )
+
+            return
+
+        self._guardar_formset_detalles(
+            request=request,
+            proyecto=form.instance,
+            formset=formset,
+        )
+
+    # ======================================================
+    # DETALLE DEL PROYECTO - METADATOS DEL ORIGEN
+    # ======================================================
+
+    def detalle_origen_metadata_view(
+        self,
+        request,
+    ):
+        """
+        Devuelve los datos necesarios para completar
+        visualmente un ProyectoDetalle.
+
+        Orígenes soportados:
+
+        - dispositivo
+        - catalogo
+        """
+
+        if not self.has_view_permission(
+            request
+        ):
+            raise PermissionDenied
+
+        origen = (
+            request.GET.get(
+                "origen",
+                ""
+            )
+            .strip()
+            .lower()
+        )
+
+        objeto_id = (
+            request.GET.get(
+                "id"
+            )
+        )
+
+        try:
+            objeto_id = int(
+                objeto_id
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return JsonResponse(
+                {
+                    "error": (
+                        "Identificador inválido."
+                    )
+                },
+                status=400,
+            )
+
+        # ==================================================
+        # DISPOSITIVO
+        # ==================================================
+
+        if origen == "dispositivo":
+
+            objeto = (
+                Dispositivo.objects
+                .filter(
+                    pk=objeto_id
+                )
+                .first()
+            )
+
+            if objeto is None:
+                return JsonResponse(
+                    {
+                        "error": (
+                            "Dispositivo no encontrado."
+                        )
+                    },
+                    status=404,
+                )
+
+            precio = (
+                objeto.precio_mercado
+                or Decimal("0.00")
+            )
+
+            return JsonResponse(
+                {
+                    "descripcion": (
+                        objeto.nombre_comercial
+                        or str(objeto)
+                    ),
+
+                    "precio_unitario": str(
+                        precio
+                    ),
+
+                    "tipo": (
+                        TipoProyectoDetalleChoices
+                        .DISPOSITIVO
+                    ),
+
+                    "tipo_label": (
+                        TipoProyectoDetalleChoices
+                        .DISPOSITIVO
+                        .label
+                    ),
+
+                    "unidad": (
+                        UnidadMedidaChoices
+                        .UNIDAD
+                    ),
+
+                    "unidad_label": (
+                        UnidadMedidaChoices
+                        .UNIDAD
+                        .label
+                    ),
+                }
+            )
+
+        # ==================================================
+        # ÍTEM DE CATÁLOGO
+        # ==================================================
+
+        if origen == "catalogo":
+
+            objeto = (
+                ItemCatalogo.objects
+                .filter(
+                    pk=objeto_id
+                )
+                .first()
+            )
+
+            if objeto is None:
+                return JsonResponse(
+                    {
+                        "error": (
+                            "Ítem de catálogo no encontrado."
+                        )
+                    },
+                    status=404,
+                )
+
+            precio = (
+                objeto.precio_venta
+                or Decimal("0.00")
+            )
+
+            return JsonResponse(
+                {
+                    "descripcion": (
+                        objeto.nombre
+                    ),
+
+                    "precio_unitario": str(
+                        precio
+                    ),
+
+                    "tipo": (
+                        objeto.tipo
+                    ),
+
+                    "tipo_label": (
+                        objeto.get_tipo_display()
+                    ),
+
+                    "unidad": (
+                        objeto.unidad
+                    ),
+
+                    "unidad_label": (
+                        objeto.get_unidad_display()
+                    ),
+                }
+            )
+
+        return JsonResponse(
+            {
+                "error": (
+                    "Origen no válido."
+                )
+            },
+            status=400,
+        )
+
 
     # ======================================================
     # SINCRONIZACIÓN DEL INLINE
@@ -3386,6 +3758,223 @@ class ProyectoAdmin(admin.ModelAdmin):
 
         return (
             obj._cantidad_ordenes_trabajo
+        )
+
+    # ======================================================
+    # GESTIONAR DETALLES
+    # ======================================================
+
+    def gestionar_detalles_view(
+        self,
+        request,
+        object_id,
+    ):
+        """
+        Pantalla específica para administrar los
+        detalles comerciales y técnicos de un Proyecto.
+        """
+
+        # ==================================================
+        # PROYECTO
+        # ==================================================
+
+        proyecto = self._obtener_proyecto(
+            request,
+            object_id,
+        )
+
+        if proyecto is None:
+            return self._redirect_changelist()
+
+        # ==================================================
+        # VISUALIZACIÓN
+        # ==================================================
+
+        if not puede_ver_proyecto(
+            request.user,
+            proyecto,
+        ):
+            raise PermissionDenied
+
+        puede_editar = (
+            puede_editar_proyecto(
+                request.user,
+                proyecto,
+            )
+        )
+
+        puede_ver_costos = (
+            puede_ver_costos_proyecto(
+                request.user
+            )
+        )
+
+        # ==================================================
+        # INLINE
+        # ==================================================
+        #
+        # Reutilizamos ProyectoDetalleInline para conservar:
+        #
+        # - autocomplete;
+        # - permisos;
+        # - campos readonly;
+        # - ProyectoDetalleForm;
+        # - ProyectoDetalleInlineFormSet;
+        # - orden automático.
+        # ==================================================
+
+        inline = ProyectoDetalleInline(
+            self.model,
+            self.admin_site,
+        )
+
+        FormSet = inline.get_formset(
+            request,
+            proyecto,
+        )
+
+        prefix = (
+            FormSet.get_default_prefix()
+        )
+
+        # ==================================================
+        # FORMSET
+        # ==================================================
+
+        if request.method == "POST":
+
+            if not puede_editar:
+                raise PermissionDenied
+
+            formset = FormSet(
+                data=request.POST,
+                files=request.FILES,
+                instance=proyecto,
+                prefix=prefix,
+            )
+
+        else:
+
+            formset = FormSet(
+                instance=proyecto,
+                prefix=prefix,
+            )
+
+        # ==================================================
+        # GUARDAR
+        # ==================================================
+
+        if (
+            request.method == "POST"
+            and formset.is_valid()
+        ):
+
+            try:
+
+                self._guardar_formset_detalles(
+                    request=request,
+                    proyecto=proyecto,
+                    formset=formset,
+                )
+
+            except ValidationError as exc:
+
+                self._mostrar_error(
+                    request,
+                    exc,
+                )
+
+            else:
+
+                messages.success(
+                    request,
+                    _(
+                        "Los detalles del proyecto "
+                        "fueron actualizados correctamente."
+                    ),
+                )
+
+                return (
+                    self._redirect_gestion_detalles(
+                        proyecto
+                    )
+                )
+
+        # ==================================================
+        # MEDIA
+        # ==================================================
+
+        media = (
+            self.media
+            + inline.media
+        )
+
+        for detalle_form in formset.forms:
+            media = (
+                media
+                + detalle_form.media
+            )
+
+        media = (
+            media
+            + formset.empty_form.media
+        )
+
+        # ==================================================
+        # URL VOLVER
+        # ==================================================
+
+        url_volver = reverse(
+            "admin:proyecto_proyecto_change",
+            args=(
+                proyecto.pk,
+            ),
+            current_app=self.admin_site.name,
+        )
+
+        # ==================================================
+        # CONTEXTO
+        # ==================================================
+
+        context = {
+            **self.admin_site.each_context(
+                request
+            ),
+
+            "title": _(
+                "Gestionar detalles del proyecto"
+            ),
+
+            "opts": self.model._meta,
+
+            "original": proyecto,
+
+            "proyecto": proyecto,
+
+            "formset": formset,
+
+            "media": media,
+
+            "puede_editar": (
+                puede_editar
+            ),
+
+            "puede_ver_costos": (
+                puede_ver_costos
+            ),
+
+            "url_volver": (
+                url_volver
+            ),
+        }
+
+        return TemplateResponse(
+            request,
+            (
+                "admin/proyecto/proyecto/"
+                "gestionar_detalles.html"
+            ),
+            context,
         )
 
     # ======================================================

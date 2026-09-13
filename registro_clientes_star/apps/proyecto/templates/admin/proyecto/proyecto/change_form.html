@@ -1,6 +1,6 @@
 {% extends "admin/change_form.html" %}
 
-{% load i18n admin_urls %}
+{% load i18n admin_urls static %}
 
 
 {# ====================================================== #}
@@ -101,6 +101,20 @@
 
 {% endblock %}
 
+{% block admin_change_form_document_ready %}
+
+    {{ block.super }}
+
+    <script>
+        window.PROYECTO_DETALLE_METADATA_URL =
+            "{% url 'admin:proyecto_proyecto_detalle_origen_metadata' %}";
+    </script>
+
+    <script
+        src="{% static 'proyecto/js/proyecto_detalle_inline.js' %}"
+    ></script>
+
+{% endblock %}
 
 {# ====================================================== #}
 {# ACCIONES DEL PROYECTO                                  #}
@@ -111,6 +125,25 @@
     {{ block.super }}
 
     {% if original %}
+
+        {# ================================================== #}
+        {# GESTIONAR DETALLES                                 #}
+        {# ================================================== #}
+
+        {% if puede_ver_detalles_proyecto %}
+
+            <li>
+
+                <a
+                    href="{% url 'admin:proyecto_proyecto_gestionar_detalles' original.pk %}"
+                    class="viewsitelink"
+                >
+                    {% translate "Gestionar detalles" %}
+                </a>
+
+            </li>
+
+        {% endif %}
 
         {# ================================================== #}
         {# GESTIÓN DOCUMENTAL                                 #}

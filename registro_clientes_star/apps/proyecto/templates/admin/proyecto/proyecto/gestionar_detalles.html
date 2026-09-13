@@ -1,0 +1,2040 @@
+{% extends "admin/base_site.html" %}
+
+{% load i18n static %}
+
+
+{# ====================================================== #}
+{# EXTRA HEAD                                             #}
+{# ====================================================== #}
+
+{% block extrahead %}
+
+    {{ block.super }}
+
+    {{ media }}
+
+
+    {# ================================================== #}
+    {# CONFIGURACIÓN JAVASCRIPT                           #}
+    {# ================================================== #}
+
+    <script>
+
+        window.PROYECTO_DETALLE_METADATA_URL =
+            "{% url 'admin:proyecto_proyecto_detalle_origen_metadata' %}";
+
+    </script>
+
+
+    <script
+        src="{% static 'proyecto/js/proyecto_detalle_inline.js' %}"
+    ></script>
+
+
+    {# ================================================== #}
+    {# ESTILOS                                            #}
+    {# ================================================== #}
+
+    <style>
+
+        /* ==================================================
+           CONTENEDOR GENERAL
+           ================================================== */
+
+        .gestion-detalles {
+            max-width: 1900px;
+            margin: 0 auto;
+        }
+
+
+        /* ==================================================
+           CABECERA GENERAL
+           ================================================== */
+
+        .gestion-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+
+            margin-bottom: 22px;
+        }
+
+        .gestion-header-info h1 {
+            margin: 0 0 6px 0;
+            font-size: 22px;
+            font-weight: 600;
+        }
+
+        .gestion-header-info p {
+            margin: 0;
+            color: var(--body-quiet-color);
+            line-height: 1.5;
+        }
+
+        .gestion-header-acciones {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+
+        /* ==================================================
+           ESTADO DE EDICIÓN
+           ================================================== */
+
+        .estado-edicion {
+            display: inline-flex;
+            align-items: center;
+
+            padding: 5px 10px;
+
+            border: 1px solid var(--hairline-color);
+            border-radius: 14px;
+
+            background: var(--darkened-bg);
+
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+
+        /* ==================================================
+           RESUMEN DEL PROYECTO
+           ================================================== */
+
+        .proyecto-resumen {
+            margin-bottom: 24px;
+        }
+
+        .proyecto-resumen-header {
+            padding: 14px 18px;
+
+            border-bottom:
+                1px solid var(--hairline-color);
+        }
+
+        .proyecto-resumen-header h2 {
+            margin: 0 0 4px 0;
+
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .proyecto-resumen-header p {
+            margin: 0;
+
+            color: var(--body-quiet-color);
+
+            font-size: 12px;
+        }
+
+        .proyecto-resumen-body {
+            display: grid;
+
+            grid-template-columns:
+                repeat(
+                    5,
+                    minmax(160px, 1fr)
+                );
+
+            gap: 0;
+
+            padding: 0;
+        }
+
+        .resumen-item {
+            padding: 16px 18px;
+
+            border-right:
+                1px solid var(--hairline-color);
+        }
+
+        .resumen-item:last-child {
+            border-right: 0;
+        }
+
+        .resumen-label {
+            display: block;
+
+            margin-bottom: 5px;
+
+            color: var(--body-quiet-color);
+
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .03em;
+        }
+
+        .resumen-value {
+            display: block;
+
+            font-size: 14px;
+            font-weight: 600;
+
+            overflow-wrap: anywhere;
+        }
+
+
+        /* ==================================================
+           BLOQUE DE DETALLES
+           ================================================== */
+
+        .detalle-modulo {
+            margin-bottom: 24px;
+        }
+
+        .detalle-modulo-header {
+            display: flex;
+
+            align-items: center;
+            justify-content: space-between;
+
+            gap: 16px;
+            flex-wrap: wrap;
+
+            padding: 14px 18px;
+
+            border-bottom:
+                1px solid var(--hairline-color);
+        }
+
+        .detalle-modulo-header h2 {
+            margin: 0 0 4px 0;
+
+            font-size: 16px;
+        }
+
+        .detalle-modulo-header p {
+            margin: 0;
+
+            color: var(--body-quiet-color);
+
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .detalle-modulo-contador {
+            display: inline-block;
+
+            padding: 4px 9px;
+
+            border: 1px solid var(--hairline-color);
+            border-radius: 12px;
+
+            background: var(--darkened-bg);
+
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+
+        /* ==================================================
+           ERRORES GENERALES
+           ================================================== */
+
+        .errores-formset {
+            margin: 16px 18px 0 18px;
+        }
+
+        .detalle-error-fila td {
+            padding: 8px 12px;
+
+            background: var(--message-error-bg);
+        }
+
+        .detalle-error-fila .errorlist {
+            margin: 0;
+        }
+
+
+        /* ==================================================
+           TABLA
+           ================================================== */
+
+        .detalle-tabla-wrapper {
+            width: 100%;
+
+            overflow-x: auto;
+            overflow-y: visible;
+        }
+
+        .detalle-tabla {
+            width: 100%;
+
+            min-width: 1780px;
+
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .detalle-tabla thead th {
+            position: sticky;
+            top: 0;
+
+            z-index: 3;
+
+            padding: 10px 8px;
+
+            border-bottom:
+                1px solid var(--hairline-color);
+
+            background: var(--darkened-bg);
+
+            color: var(--body-quiet-color);
+
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+
+            white-space: nowrap;
+        }
+
+        .detalle-tabla tbody td {
+            padding: 10px 8px;
+
+            border-bottom:
+                1px solid var(--hairline-color);
+
+            vertical-align: top;
+
+            background: var(--body-bg);
+        }
+
+        .detalle-tabla tbody tr:hover td {
+            background: var(--darkened-bg);
+        }
+
+
+        /* ==================================================
+           ORDEN - COLUMNA FIJA
+           ================================================== */
+
+        .detalle-tabla th:first-child,
+        .detalle-tabla td.field-orden {
+            position: sticky;
+            left: 0;
+
+            z-index: 2;
+
+            background: var(--body-bg);
+        }
+
+        .detalle-tabla thead th:first-child {
+            z-index: 4;
+            background: var(--darkened-bg);
+        }
+
+        .detalle-tabla tbody tr:hover td.field-orden {
+            background: var(--darkened-bg);
+        }
+
+
+        /* ==================================================
+           CAMPOS
+           ================================================== */
+
+        .detalle-tabla input,
+        .detalle-tabla select,
+        .detalle-tabla textarea {
+            box-sizing: border-box;
+
+            width: 100%;
+
+            max-width: 100%;
+        }
+
+        .detalle-tabla input[type="number"] {
+            min-width: 95px;
+        }
+
+        .detalle-tabla textarea {
+            min-height: 64px;
+
+            resize: vertical;
+        }
+
+        .detalle-tabla .select2-container {
+            width: 100% !important;
+        }
+
+        .detalle-tabla .related-widget-wrapper {
+            width: 100%;
+        }
+
+
+        /* ==================================================
+           COLUMNAS
+           ================================================== */
+
+        .field-orden {
+            width: 70px;
+            min-width: 70px;
+        }
+
+        .field-tipo {
+            width: 130px;
+            min-width: 130px;
+        }
+
+        .field-dispositivo {
+            width: 320px;
+            min-width: 320px;
+        }
+
+        .field-descripcion {
+            width: 280px;
+            min-width: 280px;
+        }
+
+        .field-cantidad {
+            width: 110px;
+            min-width: 110px;
+        }
+
+        .field-unidad {
+            width: 110px;
+            min-width: 110px;
+        }
+
+        .field-precio_unitario,
+        .field-descuento_importe,
+        .field-impuestos_importe {
+            width: 145px;
+            min-width: 145px;
+        }
+
+        .field-subtotal,
+        .field-total {
+            width: 145px;
+            min-width: 145px;
+        }
+
+        .field-observaciones {
+            width: 260px;
+            min-width: 260px;
+        }
+
+        .field-eliminar {
+            width: 95px;
+            min-width: 95px;
+
+            text-align: center;
+        }
+
+
+        /* ==================================================
+           READONLY
+           ================================================== */
+
+        .readonly {
+            box-sizing: border-box;
+
+            min-height: 34px;
+
+            margin: 0;
+
+            padding: 7px 9px;
+
+            border:
+                1px solid var(--hairline-color);
+
+            border-radius: 4px;
+
+            background: var(--darkened-bg);
+
+            line-height: 1.4;
+        }
+
+        .field-subtotal .readonly {
+            text-align: right;
+            font-weight: 600;
+        }
+
+        .field-total .readonly {
+            text-align: right;
+            font-weight: 700;
+        }
+
+
+        /* ==================================================
+           ORIGEN
+           ================================================== */
+
+        .proyecto-detalle-origen-selector {
+            margin-bottom: 10px !important;
+        }
+
+
+        /* ==================================================
+           ESTADO DE FILA
+           ================================================== */
+
+        .detalle-fila-estado {
+            display: block;
+
+            margin-top: 5px;
+
+            color: var(--body-quiet-color);
+
+            font-size: 10px;
+        }
+
+
+        /* ==================================================
+           ELIMINAR
+           ================================================== */
+
+        .eliminar-existente {
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            gap: 5px;
+
+            padding-top: 6px;
+
+            font-size: 11px;
+        }
+
+        .eliminar-existente input {
+            width: auto;
+        }
+
+        .eliminar-detalle-nuevo {
+            width: 100%;
+        }
+
+
+        /* ==================================================
+           AGREGAR DETALLE
+           ================================================== */
+
+        .detalle-agregar {
+            display: flex;
+
+            align-items: center;
+            justify-content: space-between;
+
+            gap: 16px;
+            flex-wrap: wrap;
+
+            padding: 15px 18px;
+        }
+
+        .detalle-agregar-info {
+            color: var(--body-quiet-color);
+
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        #agregar-detalle-proyecto {
+            font-weight: 600;
+        }
+
+
+        /* ==================================================
+           RESUMEN ECONÓMICO
+           ================================================== */
+
+        .totales-proyecto {
+            margin-bottom: 24px;
+        }
+
+        .totales-header {
+            padding: 14px 18px;
+
+            border-bottom:
+                1px solid var(--hairline-color);
+        }
+
+        .totales-header h2 {
+            margin: 0 0 4px 0;
+            font-size: 16px;
+        }
+
+        .totales-header p {
+            margin: 0;
+
+            color: var(--body-quiet-color);
+
+            font-size: 12px;
+        }
+
+        .totales-grid {
+            display: grid;
+
+            grid-template-columns:
+                repeat(
+                    4,
+                    minmax(160px, 1fr)
+                );
+
+            gap: 0;
+        }
+
+        .total-card {
+            padding: 18px;
+
+            border-right:
+                1px solid var(--hairline-color);
+        }
+
+        .total-card:last-child {
+            border-right: 0;
+        }
+
+        .total-card-label {
+            display: block;
+
+            margin-bottom: 5px;
+
+            color: var(--body-quiet-color);
+
+            font-size: 11px;
+            font-weight: 600;
+
+            text-transform: uppercase;
+        }
+
+        .total-card-value {
+            display: block;
+
+            font-size: 20px;
+            font-weight: 700;
+
+            text-align: right;
+        }
+
+        .total-card-principal {
+            background: var(--darkened-bg);
+        }
+
+
+        /* ==================================================
+           AYUDA
+           ================================================== */
+
+        .detalle-ayuda {
+            margin-top: 5px;
+
+            color: var(--body-quiet-color);
+
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+
+        /* ==================================================
+           ACCIONES INFERIORES
+           ================================================== */
+
+        .gestion-submit-row {
+            position: sticky;
+            bottom: 0;
+
+            z-index: 10;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: flex-end;
+
+            gap: 10px;
+            flex-wrap: wrap;
+
+            margin-top: 20px;
+
+            padding: 12px 14px;
+
+            border:
+                1px solid var(--hairline-color);
+
+            background: var(--body-bg);
+
+            box-shadow:
+                0 -2px 8px rgba(0, 0, 0, .08);
+        }
+
+        .gestion-submit-row input,
+        .gestion-submit-row a {
+            min-width: 130px;
+        }
+
+
+        /* ==================================================
+           SOLO LECTURA
+           ================================================== */
+
+        .solo-lectura-aviso {
+            margin-bottom: 20px;
+
+            padding: 14px 18px;
+
+            border:
+                1px solid var(--hairline-color);
+
+            border-radius: 4px;
+
+            background: var(--darkened-bg);
+        }
+
+        .solo-lectura-aviso strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .solo-lectura-aviso p {
+            margin: 0;
+
+            color: var(--body-quiet-color);
+        }
+
+
+        /* ==================================================
+           RESPONSIVE
+           ================================================== */
+
+        @media (max-width: 1200px) {
+
+            .proyecto-resumen-body {
+                grid-template-columns:
+                    repeat(
+                        3,
+                        minmax(160px, 1fr)
+                    );
+            }
+
+            .resumen-item {
+                border-bottom:
+                    1px solid var(--hairline-color);
+            }
+
+        }
+
+
+        @media (max-width: 900px) {
+
+            .proyecto-resumen-body,
+            .totales-grid {
+                grid-template-columns:
+                    repeat(
+                        2,
+                        minmax(150px, 1fr)
+                    );
+            }
+
+            .total-card {
+                border-bottom:
+                    1px solid var(--hairline-color);
+            }
+
+        }
+
+
+        @media (max-width: 600px) {
+
+            .proyecto-resumen-body,
+            .totales-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .resumen-item,
+            .total-card {
+                border-right: 0;
+            }
+
+            .gestion-submit-row {
+                position: static;
+
+                flex-direction: column;
+
+                align-items: stretch;
+            }
+
+            .gestion-submit-row input,
+            .gestion-submit-row a {
+                box-sizing: border-box;
+
+                width: 100%;
+
+                text-align: center;
+            }
+
+        }
+
+    </style>
+
+{% endblock %}
+
+
+{# ====================================================== #}
+{# BREADCRUMBS                                            #}
+{# ====================================================== #}
+
+{% block breadcrumbs %}
+
+    <div class="breadcrumbs">
+
+        <a href="{% url 'admin:index' %}">
+            {% translate "Inicio" %}
+        </a>
+
+        &rsaquo;
+
+        <a href="{% url 'admin:proyecto_proyecto_changelist' %}">
+            {% translate "Proyectos" %}
+        </a>
+
+        &rsaquo;
+
+        <a href="{{ url_volver }}">
+            {{ proyecto.codigo }}
+        </a>
+
+        &rsaquo;
+
+        {% translate "Gestionar detalles" %}
+
+    </div>
+
+{% endblock %}
+
+
+{# ====================================================== #}
+{# CONTENIDO                                              #}
+{# ====================================================== #}
+
+{% block content %}
+
+<div
+    id="content-main"
+    class="gestion-detalles"
+>
+
+
+    {# ================================================== #}
+    {# CABECERA                                           #}
+    {# ================================================== #}
+
+    <div class="gestion-header">
+
+        <div class="gestion-header-info">
+
+            <h1>
+                {% translate "Gestionar detalles del proyecto" %}
+            </h1>
+
+            <p>
+                {% translate "Administre los dispositivos, materiales, insumos, servicios y demás conceptos incluidos en el proyecto." %}
+            </p>
+
+        </div>
+
+
+        <div class="gestion-header-acciones">
+
+            {% if puede_editar %}
+
+                <span class="estado-edicion">
+                    {% translate "Edición habilitada" %}
+                </span>
+
+            {% else %}
+
+                <span class="estado-edicion">
+                    {% translate "Solo lectura" %}
+                </span>
+
+            {% endif %}
+
+
+            <a
+                href="{{ url_volver }}"
+                class="button"
+            >
+                {% translate "Volver al Proyecto" %}
+            </a>
+
+        </div>
+
+    </div>
+
+
+    {# ================================================== #}
+    {# RESUMEN DEL PROYECTO                               #}
+    {# ================================================== #}
+
+    <div class="module proyecto-resumen">
+
+        <div class="proyecto-resumen-header">
+
+            <h2>
+                {{ proyecto.codigo }}
+                —
+                {{ proyecto.nombre }}
+            </h2>
+
+            <p>
+                {% translate "Información general del proyecto actualmente seleccionado." %}
+            </p>
+
+        </div>
+
+
+        <div class="proyecto-resumen-body">
+
+
+            {# ========================================== #}
+            {# ESTADO                                     #}
+            {# ========================================== #}
+
+            <div class="resumen-item">
+
+                <span class="resumen-label">
+                    {% translate "Estado" %}
+                </span>
+
+                <span class="resumen-value">
+                    {{ proyecto.get_estado_display }}
+                </span>
+
+            </div>
+
+
+            {# ========================================== #}
+            {# PRIORIDAD                                  #}
+            {# ========================================== #}
+
+            <div class="resumen-item">
+
+                <span class="resumen-label">
+                    {% translate "Prioridad" %}
+                </span>
+
+                <span class="resumen-value">
+
+                    {% if proyecto.prioridad %}
+
+                        {{ proyecto.get_prioridad_display }}
+
+                    {% else %}
+
+                        —
+
+                    {% endif %}
+
+                </span>
+
+            </div>
+
+
+            {# ========================================== #}
+            {# SUCURSAL                                   #}
+            {# ========================================== #}
+
+            <div class="resumen-item">
+
+                <span class="resumen-label">
+                    {% translate "Sucursal" %}
+                </span>
+
+                <span class="resumen-value">
+
+                    {% if proyecto.sucursal %}
+
+                        {{ proyecto.sucursal }}
+
+                    {% else %}
+
+                        —
+
+                    {% endif %}
+
+                </span>
+
+            </div>
+
+
+            {# ========================================== #}
+            {# RESPONSABLE                                #}
+            {# ========================================== #}
+
+            <div class="resumen-item">
+
+                <span class="resumen-label">
+                    {% translate "Responsable" %}
+                </span>
+
+                <span class="resumen-value">
+
+                    {% if proyecto.responsable %}
+
+                        {{ proyecto.responsable }}
+
+                    {% else %}
+
+                        —
+
+                    {% endif %}
+
+                </span>
+
+            </div>
+
+
+            {# ========================================== #}
+            {# CANTIDAD DE DETALLES                       #}
+            {# ========================================== #}
+
+            <div class="resumen-item">
+
+                <span class="resumen-label">
+                    {% translate "Detalles registrados" %}
+                </span>
+
+                <span class="resumen-value">
+                    {{ proyecto.detalles.count }}
+                </span>
+
+            </div>
+
+
+        </div>
+
+    </div>
+
+
+    {# ================================================== #}
+    {# SOLO LECTURA                                       #}
+    {# ================================================== #}
+
+    {% if not puede_editar %}
+
+        <div class="solo-lectura-aviso">
+
+            <strong>
+                {% translate "Modo consulta" %}
+            </strong>
+
+            <p>
+                {% translate "Puede consultar los detalles del proyecto, pero su usuario no posee permisos para modificarlos." %}
+            </p>
+
+        </div>
+
+    {% endif %}
+
+
+    {# ================================================== #}
+    {# FORMULARIO                                         #}
+    {# ================================================== #}
+
+    <form
+        method="post"
+        novalidate
+        id="form-gestion-detalles"
+    >
+
+        {% csrf_token %}
+
+        {{ formset.management_form }}
+
+
+        {# ================================================== #}
+        {# ERRORES GENERALES                                  #}
+        {# ================================================== #}
+
+        {% if formset.non_form_errors %}
+
+            <div class="errornote errores-formset">
+
+                {{ formset.non_form_errors }}
+
+            </div>
+
+        {% endif %}
+
+
+        {# ================================================== #}
+        {# DETALLES                                           #}
+        {# ================================================== #}
+
+        <div class="module detalle-modulo">
+
+
+            {# ============================================== #}
+            {# CABECERA                                       #}
+            {# ============================================== #}
+
+            <div class="detalle-modulo-header">
+
+                <div>
+
+                    <h2>
+                        {% translate "Detalles del proyecto" %}
+                    </h2>
+
+                    <p>
+                        {% translate "Cada detalle debe corresponder a un dispositivo o a un ítem del catálogo general." %}
+                    </p>
+
+                </div>
+
+
+                <span class="detalle-modulo-contador">
+
+                    {{ proyecto.detalles.count }}
+
+                    {% translate "registrados" %}
+
+                </span>
+
+            </div>
+
+
+            {# ============================================== #}
+            {# TABLA                                          #}
+            {# ============================================== #}
+
+            <div class="detalle-tabla-wrapper">
+
+                <table class="detalle-tabla">
+
+
+                    {# ====================================== #}
+                    {# CABECERA                               #}
+                    {# ====================================== #}
+
+                    <thead>
+
+                        <tr>
+
+                            <th>
+                                {% translate "Orden" %}
+                            </th>
+
+                            <th>
+                                {% translate "Tipo" %}
+                            </th>
+
+                            <th>
+                                {% translate "Origen" %}
+                            </th>
+
+                            <th>
+                                {% translate "Descripción" %}
+                            </th>
+
+                            <th>
+                                {% translate "Cantidad" %}
+                            </th>
+
+                            <th>
+                                {% translate "Unidad" %}
+                            </th>
+
+
+                            {% if puede_ver_costos %}
+
+                                <th>
+                                    {% translate "Precio unitario" %}
+                                </th>
+
+                                <th>
+                                    {% translate "Descuento" %}
+                                </th>
+
+                                <th>
+                                    {% translate "Impuestos" %}
+                                </th>
+
+                                <th>
+                                    {% translate "Subtotal" %}
+                                </th>
+
+                                <th>
+                                    {% translate "Total" %}
+                                </th>
+
+                            {% endif %}
+
+
+                            <th>
+                                {% translate "Observaciones" %}
+                            </th>
+
+
+                            {% if puede_editar %}
+
+                                <th>
+                                    {% translate "Acción" %}
+                                </th>
+
+                            {% endif %}
+
+                        </tr>
+
+                    </thead>
+
+
+                    {# ====================================== #}
+                    {# CUERPO                                 #}
+                    {# ====================================== #}
+
+                    <tbody>
+
+
+                        {% for detalle_form in formset.forms %}
+
+
+                            {# ================================== #}
+                            {# ERRORES NO ASOCIADOS A CAMPO       #}
+                            {# ================================== #}
+
+                            {% if detalle_form.non_field_errors %}
+
+                                <tr class="detalle-error-fila">
+
+                                    <td
+                                        colspan="{% if puede_ver_costos %}{% if puede_editar %}13{% else %}12{% endif %}{% else %}{% if puede_editar %}8{% else %}7{% endif %}{% endif %}"
+                                    >
+
+                                        {{ detalle_form.non_field_errors }}
+
+                                    </td>
+
+                                </tr>
+
+                            {% endif %}
+
+
+                            {# ================================== #}
+                            {# FILA PRINCIPAL                     #}
+                            {# ================================== #}
+
+                            <tr
+                                class="form-row detalle-fila"
+                                data-form-index="{{ forloop.counter0 }}"
+                            >
+
+
+                                {# ============================== #}
+                                {# CAMPOS OCULTOS                 #}
+                                {# ============================== #}
+
+                                {% for hidden in detalle_form.hidden_fields %}
+
+                                    {{ hidden }}
+
+                                {% endfor %}
+
+
+                                {# ============================== #}
+                                {# ORDEN                          #}
+                                {# ============================== #}
+
+                                <td class="field-orden">
+
+                                    {{ detalle_form.orden.errors }}
+
+
+                                    {% if detalle_form.orden %}
+
+                                        {{ detalle_form.orden }}
+
+                                    {% else %}
+
+                                        <p class="readonly">
+                                            {{ detalle_form.instance.orden }}
+                                        </p>
+
+                                    {% endif %}
+
+
+                                    {% if detalle_form.instance.pk %}
+
+                                        <span class="detalle-fila-estado">
+                                            {{ detalle_form.instance.codigo }}
+                                        </span>
+
+                                    {% else %}
+
+                                        <span class="detalle-fila-estado">
+                                            {% translate "Nuevo" %}
+                                        </span>
+
+                                    {% endif %}
+
+                                </td>
+
+
+                                {# ============================== #}
+                                {# TIPO                           #}
+                                {# ============================== #}
+
+                                <td class="field-tipo">
+
+                                    <p class="readonly">
+
+                                        {% if detalle_form.instance.pk %}
+
+                                            {{ detalle_form.instance.get_tipo_display }}
+
+                                        {% else %}
+
+                                            —
+
+                                        {% endif %}
+
+                                    </p>
+
+                                </td>
+
+
+                                {# ============================== #}
+                                {# ORIGEN                         #}
+                                {# ============================== #}
+
+                                <td class="field-dispositivo">
+
+
+                                    {# -------------------------- #}
+                                    {# DISPOSITIVO                #}
+                                    {# -------------------------- #}
+
+                                    {% if detalle_form.dispositivo %}
+
+                                        {{ detalle_form.dispositivo.errors }}
+
+                                        {{ detalle_form.dispositivo }}
+
+                                    {% elif detalle_form.instance.dispositivo %}
+
+                                        <p class="readonly">
+                                            {{ detalle_form.instance.dispositivo }}
+                                        </p>
+
+                                    {% endif %}
+
+
+                                    {# -------------------------- #}
+                                    {# ÍTEM CATÁLOGO              #}
+                                    {# -------------------------- #}
+
+                                    {% if detalle_form.item_catalogo %}
+
+                                        {{ detalle_form.item_catalogo.errors }}
+
+                                        {{ detalle_form.item_catalogo }}
+
+                                    {% elif detalle_form.instance.item_catalogo %}
+
+                                        <p class="readonly">
+                                            {{ detalle_form.instance.item_catalogo }}
+                                        </p>
+
+                                    {% endif %}
+
+
+                                </td>
+
+
+                                {# ============================== #}
+                                {# DESCRIPCIÓN                    #}
+                                {# ============================== #}
+
+                                <td class="field-descripcion">
+
+                                    {{ detalle_form.descripcion.errors }}
+
+
+                                    {% if detalle_form.descripcion %}
+
+                                        {{ detalle_form.descripcion }}
+
+                                    {% else %}
+
+                                        <p class="readonly">
+                                            {{ detalle_form.instance.descripcion|default:"—" }}
+                                        </p>
+
+                                    {% endif %}
+
+                                </td>
+
+
+                                {# ============================== #}
+                                {# CANTIDAD                       #}
+                                {# ============================== #}
+
+                                <td class="field-cantidad">
+
+                                    {{ detalle_form.cantidad.errors }}
+
+
+                                    {% if detalle_form.cantidad %}
+
+                                        {{ detalle_form.cantidad }}
+
+                                    {% else %}
+
+                                        <p class="readonly">
+                                            {{ detalle_form.instance.cantidad }}
+                                        </p>
+
+                                    {% endif %}
+
+                                </td>
+
+
+                                {# ============================== #}
+                                {# UNIDAD                         #}
+                                {# ============================== #}
+
+                                <td class="field-unidad">
+
+                                    <p class="readonly">
+
+                                        {% if detalle_form.instance.pk %}
+
+                                            {{ detalle_form.instance.get_unidad_display }}
+
+                                        {% else %}
+
+                                            —
+
+                                        {% endif %}
+
+                                    </p>
+
+                                </td>
+
+
+                                {# ============================== #}
+                                {# COSTOS                         #}
+                                {# ============================== #}
+
+                                {% if puede_ver_costos %}
+
+
+                                    {# -------------------------- #}
+                                    {# PRECIO UNITARIO            #}
+                                    {# -------------------------- #}
+
+                                    <td class="field-precio_unitario">
+
+                                        {{ detalle_form.precio_unitario.errors }}
+
+
+                                        {% if detalle_form.precio_unitario %}
+
+                                            {{ detalle_form.precio_unitario }}
+
+                                        {% else %}
+
+                                            <p class="readonly">
+                                                {{ detalle_form.instance.precio_unitario|floatformat:2 }}
+                                            </p>
+
+                                        {% endif %}
+
+                                    </td>
+
+
+                                    {# -------------------------- #}
+                                    {# DESCUENTO                  #}
+                                    {# -------------------------- #}
+
+                                    <td class="field-descuento_importe">
+
+                                        {{ detalle_form.descuento_importe.errors }}
+
+
+                                        {% if detalle_form.descuento_importe %}
+
+                                            {{ detalle_form.descuento_importe }}
+
+                                        {% else %}
+
+                                            <p class="readonly">
+                                                {{ detalle_form.instance.descuento_importe|floatformat:2 }}
+                                            </p>
+
+                                        {% endif %}
+
+                                    </td>
+
+
+                                    {# -------------------------- #}
+                                    {# IMPUESTOS                  #}
+                                    {# -------------------------- #}
+
+                                    <td class="field-impuestos_importe">
+
+                                        {{ detalle_form.impuestos_importe.errors }}
+
+
+                                        {% if detalle_form.impuestos_importe %}
+
+                                            {{ detalle_form.impuestos_importe }}
+
+                                        {% else %}
+
+                                            <p class="readonly">
+                                                {{ detalle_form.instance.impuestos_importe|floatformat:2 }}
+                                            </p>
+
+                                        {% endif %}
+
+                                    </td>
+
+
+                                    {# -------------------------- #}
+                                    {# SUBTOTAL                   #}
+                                    {# -------------------------- #}
+
+                                    <td class="field-subtotal">
+
+                                        <p class="readonly">
+
+                                            {{ detalle_form.instance.subtotal|floatformat:2 }}
+
+                                        </p>
+
+                                    </td>
+
+
+                                    {# -------------------------- #}
+                                    {# TOTAL                      #}
+                                    {# -------------------------- #}
+
+                                    <td class="field-total">
+
+                                        <p class="readonly">
+
+                                            {{ detalle_form.instance.total|floatformat:2 }}
+
+                                        </p>
+
+                                    </td>
+
+
+                                {% endif %}
+
+
+                                {# ============================== #}
+                                {# OBSERVACIONES                  #}
+                                {# ============================== #}
+
+                                <td class="field-observaciones">
+
+                                    {{ detalle_form.observaciones.errors }}
+
+
+                                    {% if detalle_form.observaciones %}
+
+                                        {{ detalle_form.observaciones }}
+
+                                    {% else %}
+
+                                        <p class="readonly">
+                                            {{ detalle_form.instance.observaciones|default:"—" }}
+                                        </p>
+
+                                    {% endif %}
+
+                                </td>
+
+
+                                {# ============================== #}
+                                {# ELIMINAR                       #}
+                                {# ============================== #}
+
+                                {% if puede_editar %}
+
+                                    <td class="field-eliminar">
+
+                                        {% if detalle_form.instance.pk %}
+
+                                            {% if detalle_form.DELETE %}
+
+                                                <div class="eliminar-existente">
+
+                                                    {{ detalle_form.DELETE }}
+
+                                                    <label
+                                                        for="{{ detalle_form.DELETE.id_for_label }}"
+                                                    >
+                                                        {% translate "Eliminar" %}
+                                                    </label>
+
+                                                </div>
+
+                                            {% else %}
+
+                                                —
+
+                                            {% endif %}
+
+                                        {% else %}
+
+                                            <button
+                                                type="button"
+                                                class="button eliminar-detalle-nuevo"
+                                            >
+                                                {% translate "Quitar" %}
+                                            </button>
+
+                                        {% endif %}
+
+                                    </td>
+
+                                {% endif %}
+
+
+                            </tr>
+
+
+                        {% empty %}
+
+
+                            <tr>
+
+                                <td
+                                    colspan="{% if puede_ver_costos %}{% if puede_editar %}13{% else %}12{% endif %}{% else %}{% if puede_editar %}8{% else %}7{% endif %}{% endif %}"
+                                >
+
+                                    <div
+                                        style="
+                                            padding: 22px;
+                                            color: var(--body-quiet-color);
+                                        "
+                                    >
+
+                                        {% translate "El proyecto todavía no posee detalles registrados." %}
+
+                                    </div>
+
+                                </td>
+
+                            </tr>
+
+
+                        {% endfor %}
+
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+
+            {# ============================================== #}
+            {# AGREGAR DETALLE                                #}
+            {# ============================================== #}
+
+            {% if puede_editar %}
+
+                <div class="detalle-agregar">
+
+                    <div class="detalle-agregar-info">
+
+                        {% translate "Los nuevos detalles recibirán automáticamente el siguiente número de orden disponible." %}
+
+                    </div>
+
+
+                    <button
+                        type="button"
+                        id="agregar-detalle-proyecto"
+                        class="button"
+                    >
+                        + {% translate "Agregar detalle" %}
+                    </button>
+
+                </div>
+
+            {% endif %}
+
+
+        </div>
+
+
+        {# ================================================== #}
+        {# RESUMEN ECONÓMICO                                  #}
+        {# ================================================== #}
+
+        {% if puede_ver_costos %}
+
+            <div class="module totales-proyecto">
+
+
+                <div class="totales-header">
+
+                    <h2>
+                        {% translate "Resumen económico" %}
+                    </h2>
+
+                    <p>
+                        {% translate "Estos valores corresponden a los importes actualmente guardados en el proyecto. Los cambios realizados en la tabla se consolidan al guardar." %}
+                    </p>
+
+                </div>
+
+
+                <div class="totales-grid">
+
+                    <div class="total-card">
+
+                        <span class="total-card-label">
+                            {% translate "Subtotal" %}
+                        </span>
+
+                        <span
+                            class="total-card-value"
+                            id="resumen-proyecto-subtotal"
+                        >
+                            {{ proyecto.subtotal|floatformat:2 }}
+                        </span>
+
+                    </div>
+
+
+                    <div class="total-card">
+
+                        <span class="total-card-label">
+                            {% translate "Descuentos" %}
+                        </span>
+
+                        <span
+                            class="total-card-value"
+                            id="resumen-proyecto-descuentos"
+                        >
+                            {{ proyecto.descuento_total|floatformat:2 }}
+                        </span>
+
+                    </div>
+
+
+                    <div class="total-card">
+
+                        <span class="total-card-label">
+                            {% translate "Impuestos" %}
+                        </span>
+
+                        <span
+                            class="total-card-value"
+                            id="resumen-proyecto-impuestos"
+                        >
+                            {{ proyecto.impuestos|floatformat:2 }}
+                        </span>
+
+                    </div>
+
+
+                    <div class="total-card total-card-principal">
+
+                        <span class="total-card-label">
+                            {% translate "Total del proyecto" %}
+                        </span>
+
+                        <span
+                            class="total-card-value"
+                            id="resumen-proyecto-total"
+                        >
+                            {{ proyecto.total|floatformat:2 }}
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        {% endif %}
+
+
+        {# ================================================== #}
+        {# ACCIONES                                           #}
+        {# ================================================== #}
+
+        <div class="gestion-submit-row">
+
+
+            <a
+                href="{{ url_volver }}"
+                class="button"
+            >
+                {% translate "Volver al Proyecto" %}
+            </a>
+
+
+            {% if puede_editar %}
+
+                <input
+                    type="submit"
+                    value="{% translate 'Guardar detalles' %}"
+                    class="default"
+                >
+
+            {% endif %}
+
+
+        </div>
+
+
+    </form>
+
+
+    {# ================================================== #}
+    {# TEMPLATE PARA NUEVOS DETALLES                     #}
+    {# ================================================== #}
+
+    {% if puede_editar %}
+
+        <template
+            id="detalle-proyecto-empty-form"
+        >
+
+
+            <tr
+                class="
+                    form-row
+                    detalle-fila
+                    detalle-form-nuevo
+                "
+                data-form-index="__prefix__"
+            >
+
+
+                {% with detalle_form=formset.empty_form %}
+
+
+                    {# ====================================== #}
+                    {# CAMPOS OCULTOS                         #}
+                    {# ====================================== #}
+
+                    {% for hidden in detalle_form.hidden_fields %}
+
+                        {{ hidden }}
+
+                    {% endfor %}
+
+
+                    {# ====================================== #}
+                    {# ORDEN                                  #}
+                    {# ====================================== #}
+
+                    <td class="field-orden">
+
+                        {{ detalle_form.orden.errors }}
+
+                        {{ detalle_form.orden }}
+
+                        <span class="detalle-fila-estado">
+                            {% translate "Nuevo" %}
+                        </span>
+
+                    </td>
+
+
+                    {# ====================================== #}
+                    {# TIPO                                   #}
+                    {# ====================================== #}
+
+                    <td class="field-tipo">
+
+                        <p class="readonly">
+                            —
+                        </p>
+
+                    </td>
+
+
+                    {# ====================================== #}
+                    {# ORIGEN                                 #}
+                    {# ====================================== #}
+
+                    <td class="field-dispositivo">
+
+
+                        {{ detalle_form.dispositivo.errors }}
+
+                        {{ detalle_form.dispositivo }}
+
+
+                        {{ detalle_form.item_catalogo.errors }}
+
+                        {{ detalle_form.item_catalogo }}
+
+
+                    </td>
+
+
+                    {# ====================================== #}
+                    {# DESCRIPCIÓN                            #}
+                    {# ====================================== #}
+
+                    <td class="field-descripcion">
+
+                        {{ detalle_form.descripcion.errors }}
+
+                        {{ detalle_form.descripcion }}
+
+                    </td>
+
+
+                    {# ====================================== #}
+                    {# CANTIDAD                               #}
+                    {# ====================================== #}
+
+                    <td class="field-cantidad">
+
+                        {{ detalle_form.cantidad.errors }}
+
+                        {{ detalle_form.cantidad }}
+
+                    </td>
+
+
+                    {# ====================================== #}
+                    {# UNIDAD                                 #}
+                    {# ====================================== #}
+
+                    <td class="field-unidad">
+
+                        <p class="readonly">
+                            —
+                        </p>
+
+                    </td>
+
+
+                    {# ====================================== #}
+                    {# COSTOS                                 #}
+                    {# ====================================== #}
+
+                    {% if puede_ver_costos %}
+
+
+                        {# ---------------------------------- #}
+                        {# PRECIO                             #}
+                        {# ---------------------------------- #}
+
+                        <td class="field-precio_unitario">
+
+                            {{ detalle_form.precio_unitario.errors }}
+
+                            {{ detalle_form.precio_unitario }}
+
+                        </td>
+
+
+                        {# ---------------------------------- #}
+                        {# DESCUENTO                          #}
+                        {# ---------------------------------- #}
+
+                        <td class="field-descuento_importe">
+
+                            {{ detalle_form.descuento_importe.errors }}
+
+                            {{ detalle_form.descuento_importe }}
+
+                        </td>
+
+
+                        {# ---------------------------------- #}
+                        {# IMPUESTOS                          #}
+                        {# ---------------------------------- #}
+
+                        <td class="field-impuestos_importe">
+
+                            {{ detalle_form.impuestos_importe.errors }}
+
+                            {{ detalle_form.impuestos_importe }}
+
+                        </td>
+
+
+                        {# ---------------------------------- #}
+                        {# SUBTOTAL                           #}
+                        {# ---------------------------------- #}
+
+                        <td class="field-subtotal">
+
+                            <p class="readonly">
+                                0,00
+                            </p>
+
+                        </td>
+
+
+                        {# ---------------------------------- #}
+                        {# TOTAL                              #}
+                        {# ---------------------------------- #}
+
+                        <td class="field-total">
+
+                            <p class="readonly">
+                                0,00
+                            </p>
+
+                        </td>
+
+
+                    {% endif %}
+
+
+                    {# ====================================== #}
+                    {# OBSERVACIONES                          #}
+                    {# ====================================== #}
+
+                    <td class="field-observaciones">
+
+                        {{ detalle_form.observaciones.errors }}
+
+                        {{ detalle_form.observaciones }}
+
+                    </td>
+
+
+                    {# ====================================== #}
+                    {# QUITAR                                 #}
+                    {# ====================================== #}
+
+                    <td class="field-eliminar">
+
+                        <button
+                            type="button"
+                            class="
+                                button
+                                eliminar-detalle-nuevo
+                            "
+                        >
+                            {% translate "Quitar" %}
+                        </button>
+
+                    </td>
+
+
+                {% endwith %}
+
+
+            </tr>
+
+
+        </template>
+
+    {% endif %}
+
+
+</div>
+
+{% endblock %}
